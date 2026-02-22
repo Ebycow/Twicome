@@ -1,0 +1,1020 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>{{ user.login }}{% if user.display_name %}（{{ user.display_name }}）{% endif %} の {{ page_title }}</title>
+    <style>
+      :root {
+        --bg-color: #ffffff;
+        --text-color: #111111;
+        --card-border: #ddd;
+        --card-bg: #ffffff;
+        --input-border: #ccc;
+        --input-bg: #ffffff;
+        --button-bg: #f0f0f0;
+        --button-text: #111111;
+        --meta-color: #666;
+        --label-color: #444;
+        --comment-border: #eee;
+        --comment-bg: #ffffff;
+        --pill-border: #ddd;
+        --link-color: #007bff;
+        --error-bg: #fff3f3;
+        --error-border: #f2b3b3;
+        --vote-btn-bg: #f9f9f9;
+        --vote-btn-hover: #e9e9e9;
+        --vote-btn-border: #ccc;
+        --cn-bg: #e3f2fd;
+        --cn-border: #2196f3;
+        --cn-text: #1565c0;
+        --highlighted-bg: #fff3cd;
+        --highlighted-border: #ffc107;
+        --grayed-bg: #f5f5f5;
+        --grayed-border: #ddd;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg-color: #1a1a1a;
+          --text-color: #e0e0e0;
+          --card-border: #444;
+          --card-bg: #2a2a2a;
+          --input-border: #555;
+          --input-bg: #2a2a2a;
+          --button-bg: #3a3a3a;
+          --button-text: #e0e0e0;
+          --meta-color: #999;
+          --label-color: #bbb;
+          --comment-border: #444;
+          --comment-bg: #252525;
+          --pill-border: #555;
+          --link-color: #6db3f2;
+          --error-bg: #3a2020;
+          --error-border: #6b3a3a;
+          --vote-btn-bg: #3a3a3a;
+          --vote-btn-hover: #4a4a4a;
+          --vote-btn-border: #555;
+          --cn-bg: #1a2a3a;
+          --cn-border: #2196f3;
+          --cn-text: #64b5f6;
+          --highlighted-bg: #4a4020;
+          --highlighted-border: #8a7020;
+          --grayed-bg: #333;
+          --grayed-border: #555;
+        }
+      }
+      * { box-sizing: border-box; }
+      body { font-family: system-ui, -apple-system, sans-serif; margin: 24px; background: var(--bg-color); color: var(--text-color); }
+      a { color: var(--link-color); }
+      a.pill { text-decoration: none; color: var(--link-color); }
+      .top { display:flex; gap: 16px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+      .card { padding: 16px; border: 1px solid var(--card-border); border-radius: 12px; background: var(--card-bg); }
+      .error { background: var(--error-bg); border-color: var(--error-border); }
+      .section-title { margin-bottom: 10px; font-weight: 600; }
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        align-items: end;
+      }
+      .filters > div { min-width: 0; }
+      .filters > .wide { grid-column: span 2; }
+      .filters > .action { display: flex; align-items: end; }
+      .filters > .action button { width: 100%; min-height: 42px; }
+      label { display:block; font-size: 0.9rem; color: var(--label-color); }
+      input, select { width: 100%; padding: 10px; margin-top: 6px; border-radius: 10px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color); }
+      button { padding: 10px 14px; border-radius: 10px; border: 0; cursor: pointer; background: var(--button-bg); color: var(--button-text); }
+      button:hover { opacity: 0.8; }
+      .meta { color: var(--meta-color); font-size: 0.9rem; }
+      .list { margin-top: 16px; display:flex; flex-direction: column; gap: 10px; }
+      .comment { padding: 12px; border: 1px solid var(--comment-border); border-radius: 12px; background: var(--comment-bg); }
+      .comment-head { display:flex; gap: 10px; flex-wrap: wrap; align-items: baseline; justify-content: space-between; font-size: 0.9rem; }
+      .body { white-space: pre-wrap; margin-top: 8px; font-size: 1.2rem; font-weight: bold; }
+      .emote { height: 1.35em; vertical-align: -0.2em; }
+      .pager { display:flex; gap: 10px; align-items:center; justify-content: center; margin-top: 14px; }
+      .pill { display:inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--pill-border); font-size: 0.85rem; }
+      .recent { color: red; }
+      .vote-btn { margin-right: 8px; padding: 4px 8px; border: 1px solid var(--vote-btn-border); border-radius: 4px; background: var(--vote-btn-bg); cursor: pointer; color: var(--text-color); }
+      .vote-btn:hover { background: var(--vote-btn-hover); }
+      .highlighted { background-color: var(--highlighted-bg); border-color: var(--highlighted-border); }
+      .grayed { background-color: var(--grayed-bg); border-color: var(--grayed-border); }
+      .community-note { margin-top: 8px; padding: 8px 12px; background: var(--cn-bg); border: 1px solid var(--cn-border); border-radius: 8px; color: var(--cn-text); font-size: 0.95rem; }
+      .cn-scores { display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+      .cn-score-item { display:flex; align-items:center; gap:4px; font-size:0.8rem; }
+      .cn-score-bar { width:48px; height:8px; border-radius:4px; background:var(--input-border); overflow:hidden; }
+      .cn-score-fill { height:100%; border-radius:4px; }
+      .cn-danger-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.8rem; font-weight:bold; margin-right:4px; }
+      .cn-status-badge { display:inline-block; padding:1px 6px; border-radius:999px; font-size:0.75rem; border:1px solid var(--pill-border); margin-left:4px; }
+      .similarity-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.85rem; background:#e8f5e9; border:1px solid #4caf50; color:#2e7d32; }
+      @media (prefers-color-scheme: dark) {
+        .similarity-badge { background:#1b3a1b; border-color:#4caf50; color:#81c784; }
+      }
+      .slider-row { display:flex; align-items:center; gap:8px; margin-top:6px; }
+      .slider-row label { min-width:100px; margin:0; font-size:0.9rem; }
+      .slider-row input[type="range"] { flex:1; padding:0; border:none; background:transparent; }
+      .slider-row .slider-val { min-width:32px; text-align:right; font-size:0.85rem; color:var(--meta-color); }
+      .centroid-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:0.85rem; background:#e3f2fd; border:1px solid #2196f3; color:#1565c0; }
+      @media (prefers-color-scheme: dark) {
+        .centroid-badge { background:#1a2a3a; border-color:#2196f3; color:#64b5f6; }
+      }
+      .card details summary { cursor:pointer; user-select:none; font-weight:500; }
+      .card details summary::-webkit-details-marker { margin-right:6px; }
+      .card details > :not(summary) { margin-top:10px; }
+      .confetti {
+        position: fixed;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 9999;
+        animation: confetti-pop 0.8s ease-out forwards;
+      }
+      @keyframes confetti-pop {
+        0% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+        100% { opacity: 0; transform: translate(var(--cx), var(--cy)) rotate(var(--cr)) scale(0.3); }
+      }
+      @media (max-width: 980px) {
+        .filters > .wide { grid-column: span 1; }
+      }
+      @media (max-width: 720px) {
+        body { margin: 12px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <div>
+        <h1>{{ page_title }}</h1>
+        {% if user %}
+          <div class="meta">
+            {{ filters.platform }}/{{ user.login }}{% if user.display_name %}（{{ user.display_name }}）{% endif %}
+            · total {{ total }}
+          </div>
+        {% endif %}
+      </div>
+      <div style="display:flex; gap:16px; align-items:center;">
+        <a href="{{ request.url_for('quiz_page', login=user.login) }}?platform={{ filters.platform }}">クイズで遊ぶ</a>
+        <a href="{{ request.url_for('manual_page') }}">使い方ガイド</a>
+        <a href="{{ request.url_for('index') }}">← 検索に戻る</a>
+      </div>
+    </div>
+
+    <div style="margin:2rem;">
+      使い方：<br>
+      <ul>
+
+      <li><a href="" target="_blank" class="pill">VOD 123456789</a>のような部分をクリックすると、コメントが発言された時点の動画に飛ぶことができます（VODが残っている場合のみ）</li>
+      <li>コメント全体をクリックすると、コメントの個別ページに飛ぶことができ、URLで発言を共有したり、発言の前後関係を見ることができます。検索時のユーザはグレーで強調されます</li>
+        <li>各コメントにリアクションをつけることができます。好きなだけつけて問題ありません。下にある「並び」でリアクションが大きい順に並び替えができます</li>
+      </ul>
+      </div>
+
+    {% if error %}
+      <div class="card error" style="margin-top:12px;">
+        {{ error }}
+      </div>
+    {% endif %}
+
+    {% if user %}
+      <form class="card" style="margin-top:12px;" method="get" action="{{ request.url_for('user_comments_page', login=user.login) }}">
+        <div class="section-title">フィルター</div>
+        <input type="hidden" name="platform" value="{{ filters.platform }}" />
+        <div class="filters">
+          <div class="wide">
+            <label>VOD</label>
+            <select name="vod_id">
+              <option value="">（すべて）</option>
+              {% for v in vod_options %}
+                <option value="{{ v.vod_id }}" {% if filters.vod_id and (filters.vod_id|int == v.vod_id) %}selected{% endif %}>
+                  {{ v.vod_id }} - {{ v.title }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>配信者</label>
+            <select name="owner_user_id">
+              <option value="">（すべて）</option>
+              {% for o in owner_options %}
+                <option value="{{ o.user_id }}" {% if filters.owner_user_id and (filters.owner_user_id|int == o.user_id) %}selected{% endif %}>
+                  {{ o.login }}{% if o.display_name %}（{{ o.display_name }}）{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>本文検索</label>
+            <input name="q" value="{{ filters.q or '' }}" placeholder="keyword" />
+          </div>
+          <div class="wide">
+            <label>除外ワード</label>
+            <input name="exclude_q" value="{{ filters.exclude_q or '' }}" placeholder="含まれると除外（空白/カンマ区切り）" />
+          </div>
+          <div>
+            <label>並び</label>
+            <select name="sort">
+              <option value="created_at" {% if not filters.sort or filters.sort == 'created_at' %}selected{% endif %}>コメント時刻</option>
+              <option value="vod_time" {% if filters.sort == 'vod_time' %}selected{% endif %}>VOD/時間</option>
+              <option value="likes" {% if filters.sort == 'likes' %}selected{% endif %}>いいね順</option>
+              <option value="dislikes" {% if filters.sort == 'dislikes' %}selected{% endif %}>コミュニティノート : わるいね順</option>
+              <option value="community_note" {% if filters.sort == 'community_note' %}selected{% endif %}>最新のコミュニティノート順</option>
+              <option value="danger" {% if filters.sort == 'danger' %}selected{% endif %}>危険度順</option>
+              <option value="random" {% if filters.sort == 'random' %}selected{% endif %}>ランダム</option>
+            </select>
+          </div>
+          <div>
+            <label>1ページ</label>
+            <select name="page_size">
+              {% for s in [20,50,100,200] %}
+                <option value="{{ s }}" {% if filters.page_size == s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="action">
+            <button type="submit">適用</button>
+          </div>
+        </div>
+      </form>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="section-title">類似検索（意味的に近いコメントを検索）</div>
+        <div class="filters">
+          <div class="wide">
+            <label>検索テキスト</label>
+            <input id="similar-q" placeholder="例: おもしろい、ありがとう、草" />
+          </div>
+          <div>
+            <label>件数</label>
+            <select id="similar-top-k">
+              <option value="20">20</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div class="action">
+            <button type="button" id="similar-search-btn">類似検索</button>
+          </div>
+          <div class="action" id="similar-clear" style="display:none;">
+            <button type="button" id="similar-clear-btn">通常表示に戻す</button>
+          </div>
+        </div>
+        <div id="similar-status" class="meta" style="margin-top:8px;"></div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <details id="centroid-details">
+          <summary>典型度スライダー（重心からの距離で検索）</summary>
+          <div class="slider-row">
+            <label>典型的</label>
+            <input type="range" id="centroid-slider" min="0" max="100" value="0" step="1" />
+            <label>珍しい</label>
+            <span class="slider-val" id="centroid-val">0%</span>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+            <select id="centroid-top-k">
+              <option value="20">20</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+            </select>
+            <button type="button" id="centroid-search-btn">検索</button>
+            <div id="centroid-clear" style="display:none;">
+              <button type="button" id="centroid-clear-btn">通常表示に戻す</button>
+            </div>
+          </div>
+          <div id="centroid-status" class="meta" style="margin-top:8px;"></div>
+        </details>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <details id="emotion-details">
+          <summary>感情スライダー（感情を合成して検索）</summary>
+          <div id="emotion-sliders">
+            <div class="slider-row"><label>笑い・楽しさ</label><input type="range" data-emotion="joy" min="0" max="100" value="0" step="1" /><span class="slider-val">0</span></div>
+            <div class="slider-row"><label>驚き</label><input type="range" data-emotion="surprise" min="0" max="100" value="0" step="1" /><span class="slider-val">0</span></div>
+            <div class="slider-row"><label>称賛・感動</label><input type="range" data-emotion="admiration" min="0" max="100" value="0" step="1" /><span class="slider-val">0</span></div>
+            <div class="slider-row"><label>怒り・不満</label><input type="range" data-emotion="anger" min="0" max="100" value="0" step="1" /><span class="slider-val">0</span></div>
+            <div class="slider-row"><label>悲しみ</label><input type="range" data-emotion="sadness" min="0" max="100" value="0" step="1" /><span class="slider-val">0</span></div>
+            <div class="slider-row"><label>応援</label><input type="range" data-emotion="cheer" min="0" max="100" value="0" step="1" /><span class="slider-val">0</span></div>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+            <select id="emotion-top-k">
+              <option value="20">20</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+            </select>
+            <button type="button" id="emotion-search-btn">感情検索</button>
+            <button type="button" id="emotion-reset-btn" style="opacity:0.7;">スライダーリセット</button>
+            <div id="emotion-clear" style="display:none;">
+              <button type="button" id="emotion-clear-btn">通常表示に戻す</button>
+            </div>
+          </div>
+          <div id="emotion-status" class="meta" style="margin-top:8px;"></div>
+        </details>
+      </div>
+
+      <div id="load-prev" style="display:none; text-align:center; margin:16px;">
+        <button id="load-prev-btn" style="width: 100%; max-width: 400px; padding: 12px; font-size: 16px;">前の投稿も読む</button>
+      </div>
+
+      <div class="list">
+        {% for c in comments %}
+          <a href="?cursor={{ c.comment_id }}" style="text-decoration: none; color: inherit;" onclick="if (event.target.closest('button')) { event.preventDefault(); return false; }"></a>
+          {% if filters.cursor %}
+            {% if c.comment_id == filters.cursor %}
+              <div class="comment highlighted" id="{{ c.comment_id }}">
+            {% elif c.commenter_login_snapshot == user.login %}
+              <div class="comment grayed" id="{{ c.comment_id }}">
+            {% else %}
+              <div class="comment" id="{{ c.comment_id }}">
+            {% endif %}
+          {% else %}
+            <div class="comment" id="{{ c.comment_id }}">
+          {% endif %}
+            <div class="comment-head">
+              <div>
+                <a href="{{ c.vod_jump_link }}" target="_blank" class="pill">VOD {{ c.vod_id }}</a>
+                {% if c.youtube_jump_link %}
+                  <a href="{{ c.youtube_jump_link }}" target="_blank" class="pill">YouTube</a>
+                {% endif %}
+                <strong>{{ c.vod_title }}</strong>
+                <span class="meta">· 配信者: {{ c.owner_login }}{% if c.owner_display_name %}（{{ c.owner_display_name }}）{% endif %}</span>
+                <span class="meta">· {{ c.commenter_login_snapshot }}{% if c.commenter_display_name_snapshot %}（{{ c.commenter_display_name_snapshot }}）の書き込み{% endif %}</span>
+                <span class="meta">· {{ c.offset_hms }}</span>
+                {% if c.comment_created_at_jst %}
+                  <span class="meta">· {{ c.comment_created_at_jst }} JST</span>
+                {% endif %}
+                {% if c.relative_time %}
+                  <span class="meta {% if c.is_recent %}recent{% endif %}">· {{ c.relative_time }}</span>
+                {% endif %}
+                {% if c.bits_spent %}
+                  <span class="pill">bits {{ c.bits_spent }}</span>
+                {% endif %}
+              </div>
+              <div class="meta">
+                <button onclick="vote(this, '{{ c.comment_id }}', 'like')" class="vote-btn" data-count="{{ c.twicome_likes_count }}">😂 {{ c.twicome_likes_count }}</button>
+                <button onclick="vote(this, '{{ c.comment_id }}', 'dislike')" class="vote-btn" data-count="{{ c.twicome_dislikes_count }}">❓ {{ c.twicome_dislikes_count }}</button>
+                {% if c.vod_link %}
+                  <a href="{{ c.vod_link }}" target="_blank" rel="noopener">VODで開く</a>
+                {% elif c.vod_url %}
+                  <a href="{{ c.vod_url }}" target="_blank" rel="noopener">VODで開く</a>
+                {% endif %}
+              </div>
+            </div>
+            <div class="body">{{ c.body_html | safe }}</div>
+            {% if c.community_note_body %}
+              <div class="community-note">
+                <div>
+                  {% if c.cn_harm_risk is not none %}
+                    {% set danger = ((c.cn_harm_risk + c.cn_exaggeration + c.cn_evidence_gap + c.cn_subjectivity) / 4)|round|int %}
+                    <span class="cn-danger-badge" style="background:{{ 'rgba(244,67,54,0.2);color:#d32f2f;border:1px solid #d32f2f' if danger >= 60 else ('rgba(255,152,0,0.2);color:#e65100;border:1px solid #e65100' if danger >= 30 else 'rgba(76,175,80,0.2);color:#2e7d32;border:1px solid #2e7d32') }}">
+                      危険度 {{ danger }}
+                    </span>
+                  {% endif %}
+                  {% if c.cn_status %}
+                    <span class="cn-status-badge">{{ {"supported": "裏付けあり", "insufficient": "情報不足", "inconsistent": "矛盾あり", "not_applicable": "該当なし"}[c.cn_status] or c.cn_status }}</span>
+                  {% endif %}
+                  &#x1f4dd; {{ c.community_note_body }}
+                </div>
+                {% if c.cn_harm_risk is not none %}
+                <div class="cn-scores">
+                  <div class="cn-score-item">
+                    <span>検証可能性</span>
+                    <div class="cn-score-bar"><div class="cn-score-fill" style="width:{{ c.cn_verifiability }}%;background:#2196f3;"></div></div>
+                    <span>{{ c.cn_verifiability }}</span>
+                  </div>
+                  <div class="cn-score-item">
+                    <span>被害可能性</span>
+                    <div class="cn-score-bar"><div class="cn-score-fill" style="width:{{ c.cn_harm_risk }}%;background:#f44336;"></div></div>
+                    <span>{{ c.cn_harm_risk }}</span>
+                  </div>
+                  <div class="cn-score-item">
+                    <span>誇張度</span>
+                    <div class="cn-score-bar"><div class="cn-score-fill" style="width:{{ c.cn_exaggeration }}%;background:#ff9800;"></div></div>
+                    <span>{{ c.cn_exaggeration }}</span>
+                  </div>
+                  <div class="cn-score-item">
+                    <span>根拠不足</span>
+                    <div class="cn-score-bar"><div class="cn-score-fill" style="width:{{ c.cn_evidence_gap }}%;background:#9c27b0;"></div></div>
+                    <span>{{ c.cn_evidence_gap }}</span>
+                  </div>
+                  <div class="cn-score-item">
+                    <span>主観度</span>
+                    <div class="cn-score-bar"><div class="cn-score-fill" style="width:{{ c.cn_subjectivity }}%;background:#607d8b;"></div></div>
+                    <span>{{ c.cn_subjectivity }}</span>
+                  </div>
+                </div>
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+
+    {% endif %}
+    <script type="application/json" id="filters-data">{{ filters | tojson }}</script>
+    <script type="application/json" id="root-path-data">{{ root_path | tojson }}</script>
+    <script type="application/json" id="page-data">{{ page | tojson }}</script>
+    <script type="application/json" id="pages-data">{{ pages | tojson }}</script>
+    <script type="application/json" id="user-data">{{ user.login | tojson }}</script>
+    <script>
+      // XSS対策: HTMLエスケープ関数
+      function escapeHtml(str) {
+        if (str == null) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function renderBody(comment) {
+        if (comment && comment.body_html) return comment.body_html;
+        return escapeHtml(comment.body);
+      }
+
+      function renderCommunityNote(comment) {
+        if (!comment.community_note_body) return '';
+        let html = '<div class="community-note"><div>';
+        if (comment.cn_harm_risk != null) {
+          const danger = Math.round((comment.cn_harm_risk + comment.cn_exaggeration + comment.cn_evidence_gap + (comment.cn_subjectivity || 0)) / 4);
+          let badgeStyle;
+          if (danger >= 60) badgeStyle = 'background:rgba(244,67,54,0.2);color:#d32f2f;border:1px solid #d32f2f';
+          else if (danger >= 30) badgeStyle = 'background:rgba(255,152,0,0.2);color:#e65100;border:1px solid #e65100';
+          else badgeStyle = 'background:rgba(76,175,80,0.2);color:#2e7d32;border:1px solid #2e7d32';
+          html += `<span class="cn-danger-badge" style="${badgeStyle}">危険度 ${danger}</span>`;
+        }
+        if (comment.cn_status) {
+          const statusJa = {supported: "裏付けあり", insufficient: "情報不足", inconsistent: "矛盾あり", not_applicable: "該当なし"};
+          html += `<span class="cn-status-badge">${escapeHtml(statusJa[comment.cn_status] || comment.cn_status)}</span>`;
+        }
+        html += ` &#x1f4dd; ${escapeHtml(comment.community_note_body)}</div>`;
+        if (comment.cn_harm_risk != null) {
+          html += '<div class="cn-scores">';
+          const scores = [
+            {label:'検証可能性', val:comment.cn_verifiability, color:'#2196f3'},
+            {label:'被害可能性', val:comment.cn_harm_risk, color:'#f44336'},
+            {label:'誇張度', val:comment.cn_exaggeration, color:'#ff9800'},
+            {label:'根拠不足', val:comment.cn_evidence_gap, color:'#9c27b0'},
+            {label:'主観度', val:comment.cn_subjectivity, color:'#607d8b'},
+          ];
+          scores.forEach(s => {
+            html += `<div class="cn-score-item"><span>${s.label}</span><div class="cn-score-bar"><div class="cn-score-fill" style="width:${s.val}%;background:${s.color};"></div></div><span>${s.val}</span></div>`;
+          });
+          html += '</div>';
+        }
+        html += '</div>';
+        return html;
+      }
+
+      let filters = JSON.parse(document.getElementById('filters-data').textContent);
+      const rawRootPath = JSON.parse(document.getElementById('root-path-data').textContent);
+      const normalizedRootPath = (typeof rawRootPath === 'string') ? rawRootPath.trim() : '';
+      const rootPath = (normalizedRootPath && normalizedRootPath !== '/') ? normalizedRootPath.replace(/\/+$/, '') : '';
+      const initialPage = JSON.parse(document.getElementById('page-data').textContent);
+      let totalPages = JSON.parse(document.getElementById('pages-data').textContent);
+      const userLogin = JSON.parse(document.getElementById('user-data').textContent);
+      let currentMinPage = initialPage;
+      let currentMaxPage = initialPage;
+      let loadedPages = new Set([initialPage]);
+      let isLoading = false;
+      const listElement = document.querySelector('.list');
+      const isCursorMode = !!filters.cursor;
+
+      function updateURL(page, cursor = null) {
+         const url = new URL(window.location);
+         if (cursor) {
+           url.searchParams.set('cursor', cursor);
+           url.searchParams.delete('page');
+         } else {
+           url.searchParams.set('page', page);
+           url.searchParams.delete('cursor');
+         }
+         window.history.pushState({}, '', url);
+       }
+
+      function updatePrevButton() {
+        const btn = document.getElementById('load-prev');
+        if (isCursorMode || currentMinPage <= 1) {
+          btn.style.display = 'none';
+        } else {
+          btn.style.display = 'block';
+        }
+      }
+
+      async function loadComments(page, direction = 'append', reset = false) {
+        if (isLoading) return;
+        if (!reset && (loadedPages.has(page) || page < 1 || page > totalPages)) return;
+        isLoading = true;
+
+        if (reset) {
+          listElement.innerHTML = '';
+          loadedPages.clear();
+          currentMinPage = page;
+          currentMaxPage = page;
+          loadedPages.add(page);
+          updateURL(page, filters.cursor);
+        }
+
+        const params = new URLSearchParams({
+          platform: filters.platform,
+          page: page,
+          page_size: filters.page_size,
+          sort: filters.sort,
+          ...(filters.cursor && { cursor: filters.cursor }),
+          ...(filters.vod_id && { vod_id: filters.vod_id }),
+          ...(filters.owner_user_id && { owner_user_id: filters.owner_user_id }),
+          ...(filters.q && { q: filters.q }),
+          ...(filters.exclude_q && { exclude_q: filters.exclude_q })
+        });
+
+        try {
+          const response = await fetch(`${rootPath}/api/u/{{ user.login }}?${params}`);
+          if (!response.ok) throw new Error('Failed to load comments');
+          const data = await response.json();
+
+          if (reset) {
+            totalPages = Math.ceil(data.total / filters.page_size);
+          }
+
+          if (!reset) {
+            loadedPages.add(page);
+          }
+
+          data.items.forEach(comment => {
+            const link = document.createElement('a');
+            link.href = `?cursor=${comment.comment_id}`;
+            link.style.textDecoration = 'none';
+            link.style.color = 'inherit';
+            link.addEventListener('click', (e) => {
+              if (e.target.closest('button')) {
+                e.preventDefault();
+                return;
+              }
+            });
+            const commentDiv = document.createElement('div');
+            if (isCursorMode) {
+              if (comment.comment_id === filters.cursor) {
+                commentDiv.className = 'comment highlighted';
+              } else if (comment.commenter_login_snapshot === userLogin) {
+                commentDiv.className = 'comment grayed';
+              } else {
+                commentDiv.className = 'comment';
+              }
+            } else {
+              commentDiv.className = 'comment';
+            }
+            commentDiv.id = comment.comment_id;
+            commentDiv.innerHTML = `
+              <div class="comment-head">
+                <div>
+                  <a href="${escapeHtml(comment.vod_jump_link)}" target="_blank" class="pill">VOD ${escapeHtml(comment.vod_id)}</a>
+                  ${comment.youtube_jump_link ? `<a href="${escapeHtml(comment.youtube_jump_link)}" target="_blank" class="pill">YouTube</a>` : ''}
+                  <strong>${escapeHtml(comment.vod_title)}</strong>
+                  <span class="meta">· 配信者: ${escapeHtml(comment.owner_login)}${comment.owner_display_name ? `（${escapeHtml(comment.owner_display_name)}）` : ''}</span>
+                  <span class="meta">· ${escapeHtml(comment.commenter_login_snapshot)}${comment.commenter_display_name_snapshot ? `（${escapeHtml(comment.commenter_display_name_snapshot)}）` : ''}の書き込み</span>
+                  <span class="meta">· ${escapeHtml(comment.offset_hms)}</span>
+                  ${comment.comment_created_at_jst ? `<span class="meta">· ${escapeHtml(comment.comment_created_at_jst)} JST</span>` : ''}
+                  ${comment.relative_time ? `<span class="meta ${comment.is_recent ? 'recent' : ''}">· ${escapeHtml(comment.relative_time)}</span>` : ''}
+                  ${comment.bits_spent ? `<span class="pill">bits ${escapeHtml(comment.bits_spent)}</span>` : ''}
+                </div>
+                <div class="meta">
+                  <button onclick="vote(this, '${escapeHtml(comment.comment_id)}', 'like')" class="vote-btn" data-count="${escapeHtml(comment.twicome_likes_count)}">😂 ${escapeHtml(comment.twicome_likes_count)}</button>
+                  <button onclick="vote(this, '${escapeHtml(comment.comment_id)}', 'dislike')" class="vote-btn" data-count="${escapeHtml(comment.twicome_dislikes_count)}">❓ ${escapeHtml(comment.twicome_dislikes_count)}</button>
+                </div>
+              </div>
+              <div class="body">${renderBody(comment)}</div>
+              ${renderCommunityNote(comment)}
+            `;
+            link.appendChild(commentDiv);
+            if (direction === 'prepend') {
+              listElement.insertBefore(link, listElement.firstChild);
+            } else {
+              listElement.appendChild(link);
+            }
+          });
+
+          if (direction === 'prepend') {
+            currentMinPage = Math.min(currentMinPage, page);
+          } else {
+            currentMaxPage = Math.max(currentMaxPage, page);
+          }
+
+          updatePrevButton();
+
+          if (!reset) {
+            updateURL(page, filters.cursor);
+          }
+        } catch (error) {
+          console.error('Error loading comments:', error);
+        } finally {
+          isLoading = false;
+        }
+      }
+
+      function handleScroll() {
+        if (isCursorMode) return;
+        const windowHeight = window.innerHeight;
+        const documentHeight = document.body.offsetHeight;
+
+        // Load next page if near bottom
+        if (windowHeight + window.scrollY >= documentHeight - 100 && currentMaxPage < totalPages) {
+          loadComments(currentMaxPage + 1, 'append');
+        }
+      }
+
+      window.addEventListener('scroll', handleScroll);
+
+      // Handle load previous button
+      document.getElementById('load-prev-btn').addEventListener('click', () => {
+        if (isCursorMode) return;
+        loadComments(currentMinPage - 1, 'prepend');
+      });
+
+      // Initial load
+      loadComments(initialPage, 'append', true).then(() => {
+        if (filters.cursor) {
+          const element = document.getElementById(filters.cursor);
+          if (element) {
+            element.classList.add('highlighted');
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      });
+
+      function spawnConfetti(button) {
+        const rect = button.getBoundingClientRect();
+        const ox = rect.left + rect.width / 2;
+        const oy = rect.top + rect.height / 2;
+        const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6eb4','#a66cff'];
+        const shapes = ['50%','2px'];
+        for (let i = 0; i < 12; i++) {
+          const el = document.createElement('div');
+          el.className = 'confetti';
+          const angle = (Math.PI * 2 * i) / 12 + (Math.random() - 0.5) * 0.5;
+          const dist = 30 + Math.random() * 50;
+          el.style.left = ox + 'px';
+          el.style.top = oy + 'px';
+          el.style.background = colors[Math.floor(Math.random() * colors.length)];
+          el.style.borderRadius = shapes[Math.floor(Math.random() * shapes.length)];
+          el.style.width = (5 + Math.random() * 5) + 'px';
+          el.style.height = (5 + Math.random() * 5) + 'px';
+          el.style.setProperty('--cx', Math.cos(angle) * dist + 'px');
+          el.style.setProperty('--cy', Math.sin(angle) * dist - 20 + 'px');
+          el.style.setProperty('--cr', (Math.random() * 720 - 360) + 'deg');
+          document.body.appendChild(el);
+          el.addEventListener('animationend', () => el.remove());
+        }
+      }
+
+      // 連打をバッチ処理するためのデバウンス機構
+      const votePending = new Map(); // key: `${commentId}-${type}`, value: {count, timer, button}
+      const VOTE_DEBOUNCE_MS = 500; // 連打が止まってから500ms後に送信
+
+      function vote(button, commentId, type) {
+        spawnConfetti(button);
+        const key = `${commentId}-${type}`;
+
+        // UI上は即座にカウントを更新（楽しさのため）
+        let currentCount = parseInt(button.dataset.count) + 1;
+        button.dataset.count = currentCount;
+        button.textContent = (type === 'like' ? '😂 ' : '❓️ ') + currentCount;
+
+        // 既存のペンディングがあればカウントを増やしてタイマーをリセット
+        if (votePending.has(key)) {
+          const pending = votePending.get(key);
+          pending.count++;
+          clearTimeout(pending.timer);
+          pending.timer = setTimeout(() => flushVote(key), VOTE_DEBOUNCE_MS);
+        } else {
+          // 新規ペンディングを作成
+          const pending = {
+            count: 1,
+            button: button,
+            commentId: commentId,
+            type: type,
+            timer: setTimeout(() => flushVote(key), VOTE_DEBOUNCE_MS)
+          };
+          votePending.set(key, pending);
+        }
+      }
+
+      async function flushVote(key) {
+        const pending = votePending.get(key);
+        if (!pending) return;
+
+        votePending.delete(key);
+
+        const { commentId, type, count } = pending;
+        const url = `${rootPath}/${type}/${commentId}?count=${count}`;
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest'
+            }
+          });
+          if (!response.ok) {
+            console.error('Vote failed:', await response.text());
+          }
+        } catch (error) {
+          console.error('Network error:', error);
+        }
+      }
+
+      // Handle filter form submission
+      document.querySelector('form').addEventListener('submit', function(e) {
+        // Allow normal form submission to reload the page
+      });
+
+      // -----------------------
+      // 類似検索
+      // -----------------------
+      const similarBtn = document.getElementById('similar-search-btn');
+      const similarInput = document.getElementById('similar-q');
+      const similarTopK = document.getElementById('similar-top-k');
+      const similarClear = document.getElementById('similar-clear');
+      const similarClearBtn = document.getElementById('similar-clear-btn');
+      const similarStatus = document.getElementById('similar-status');
+      let isSimilarMode = false;
+
+      if (similarBtn) {
+        similarBtn.addEventListener('click', performSimilarSearch);
+        similarInput.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            performSimilarSearch();
+          }
+        });
+
+        similarClearBtn.addEventListener('click', exitSpecialMode);
+      }
+
+      async function performSimilarSearch() {
+        const query = similarInput.value.trim();
+        if (!query) return;
+
+        similarBtn.disabled = true;
+        similarBtn.textContent = '検索中...';
+        similarStatus.textContent = '検索中...';
+
+        try {
+          const params = new URLSearchParams({
+            q: query,
+            platform: filters.platform,
+            top_k: similarTopK.value,
+          });
+          const response = await fetch(`${rootPath}/api/u/${userLogin}/similar?${params}`);
+
+          if (!response.ok) {
+            const err = await response.json();
+            if (err.error === 'similar_search_not_available') {
+              similarStatus.textContent = 'このユーザの類似検索インデックスはまだ作成されていません';
+              return;
+            }
+            throw new Error('Search failed');
+          }
+
+          const data = await response.json();
+          isSimilarMode = true;
+          similarClear.style.display = 'block';
+
+          // コメントリストをクリアして類似検索結果を表示
+          listElement.innerHTML = '';
+
+          if (data.items.length === 0) {
+            listElement.innerHTML = '<div class="comment">類似するコメントが見つかりませんでした</div>';
+            similarStatus.textContent = '0 件の結果';
+            return;
+          }
+
+          similarStatus.textContent = `「${escapeHtml(query)}」に類似する ${data.items.length} 件の結果`;
+
+          data.items.forEach(comment => {
+            const link = document.createElement('a');
+            link.href = `?cursor=${comment.comment_id}`;
+            link.style.textDecoration = 'none';
+            link.style.color = 'inherit';
+            link.addEventListener('click', (e) => {
+              if (e.target.closest('button')) { e.preventDefault(); return; }
+            });
+            const commentDiv = document.createElement('div');
+            commentDiv.className = 'comment';
+            commentDiv.id = comment.comment_id;
+            const scorePercent = (comment.similarity_score * 100).toFixed(1);
+            commentDiv.innerHTML = `
+              <div class="comment-head">
+                <div>
+                  <span class="similarity-badge">類似度: ${scorePercent}%</span>
+                  <a href="${escapeHtml(comment.vod_jump_link)}" target="_blank" class="pill">VOD ${escapeHtml(String(comment.vod_id))}</a>
+                  ${comment.youtube_jump_link ? `<a href="${escapeHtml(comment.youtube_jump_link)}" target="_blank" class="pill">YouTube</a>` : ''}
+                  <strong>${escapeHtml(comment.vod_title)}</strong>
+                  <span class="meta">· 配信者: ${escapeHtml(comment.owner_login)}${comment.owner_display_name ? '（' + escapeHtml(comment.owner_display_name) + '）' : ''}</span>
+                  <span class="meta">· ${escapeHtml(comment.commenter_login_snapshot)}${comment.commenter_display_name_snapshot ? '（' + escapeHtml(comment.commenter_display_name_snapshot) + '）の書き込み' : ''}</span>
+                  <span class="meta">· ${escapeHtml(comment.offset_hms)}</span>
+                  ${comment.comment_created_at_jst ? '<span class="meta">· ' + escapeHtml(comment.comment_created_at_jst) + ' JST</span>' : ''}
+                  ${comment.relative_time ? '<span class="meta ' + (comment.is_recent ? 'recent' : '') + '">· ' + escapeHtml(comment.relative_time) + '</span>' : ''}
+                  ${comment.bits_spent ? '<span class="pill">bits ' + escapeHtml(String(comment.bits_spent)) + '</span>' : ''}
+                </div>
+                <div class="meta">
+                  <button onclick="vote(this, '${escapeHtml(comment.comment_id)}', 'like')" class="vote-btn" data-count="${comment.twicome_likes_count}">&#x1f602; ${comment.twicome_likes_count}</button>
+                  <button onclick="vote(this, '${escapeHtml(comment.comment_id)}', 'dislike')" class="vote-btn" data-count="${comment.twicome_dislikes_count}">&#x2753; ${comment.twicome_dislikes_count}</button>
+                </div>
+              </div>
+              <div class="body">${renderBody(comment)}</div>
+              ${renderCommunityNote(comment)}
+            `;
+            link.appendChild(commentDiv);
+            listElement.appendChild(link);
+          });
+        } catch (error) {
+          console.error('Similar search error:', error);
+          similarStatus.textContent = '類似検索でエラーが発生しました';
+        } finally {
+          similarBtn.disabled = false;
+          similarBtn.textContent = '類似検索';
+        }
+      }
+
+      // -----------------------
+      // 共通: 特殊モード中はスクロール読み込みを無効化
+      // -----------------------
+      let isSpecialMode = false; // 類似/重心/感情いずれかのモード中
+      const originalHandleScroll = handleScroll;
+      function handleScrollWrapper() {
+        if (isSimilarMode || isSpecialMode) return;
+        originalHandleScroll();
+      }
+      window.removeEventListener('scroll', handleScroll);
+      window.addEventListener('scroll', handleScrollWrapper);
+
+      // 共通: コメントを描画するヘルパー（badge付き）
+      function renderSearchResults(items, badgeHtml) {
+        listElement.innerHTML = '';
+        if (items.length === 0) {
+          listElement.innerHTML = '<div class="comment">該当するコメントが見つかりませんでした</div>';
+          return;
+        }
+        items.forEach(comment => {
+          const link = document.createElement('a');
+          link.href = `?cursor=${comment.comment_id}`;
+          link.style.textDecoration = 'none';
+          link.style.color = 'inherit';
+          link.addEventListener('click', (e) => { if (e.target.closest('button')) { e.preventDefault(); return; } });
+          const commentDiv = document.createElement('div');
+          commentDiv.className = 'comment';
+          commentDiv.id = comment.comment_id;
+          const badge = typeof badgeHtml === 'function' ? badgeHtml(comment) : (badgeHtml || '');
+          commentDiv.innerHTML = `
+            <div class="comment-head">
+              <div>
+                ${badge}
+                <a href="${escapeHtml(comment.vod_jump_link)}" target="_blank" class="pill">VOD ${escapeHtml(String(comment.vod_id))}</a>
+                ${comment.youtube_jump_link ? `<a href="${escapeHtml(comment.youtube_jump_link)}" target="_blank" class="pill">YouTube</a>` : ''}
+                <strong>${escapeHtml(comment.vod_title)}</strong>
+                <span class="meta">· ${escapeHtml(comment.commenter_login_snapshot)}${comment.commenter_display_name_snapshot ? '（' + escapeHtml(comment.commenter_display_name_snapshot) + '）の書き込み' : ''}</span>
+                <span class="meta">· ${escapeHtml(comment.offset_hms)}</span>
+                ${comment.comment_created_at_jst ? '<span class="meta">· ' + escapeHtml(comment.comment_created_at_jst) + ' JST</span>' : ''}
+              </div>
+              <div class="meta">
+                <button onclick="vote(this, '${escapeHtml(comment.comment_id)}', 'like')" class="vote-btn" data-count="${comment.twicome_likes_count}">&#x1f602; ${comment.twicome_likes_count}</button>
+                <button onclick="vote(this, '${escapeHtml(comment.comment_id)}', 'dislike')" class="vote-btn" data-count="${comment.twicome_dislikes_count}">&#x2753; ${comment.twicome_dislikes_count}</button>
+              </div>
+            </div>
+            <div class="body">${renderBody(comment)}</div>
+            ${renderCommunityNote(comment)}
+          `;
+          link.appendChild(commentDiv);
+          listElement.appendChild(link);
+        });
+      }
+
+      function exitSpecialMode() {
+        isSpecialMode = false;
+        isSimilarMode = false;
+        similarClear.style.display = 'none';
+        similarStatus.textContent = '';
+        document.getElementById('centroid-clear').style.display = 'none';
+        document.getElementById('centroid-status').textContent = '';
+        document.getElementById('emotion-clear').style.display = 'none';
+        document.getElementById('emotion-status').textContent = '';
+        centroidDetails.open = false;
+        emotionDetails.open = false;
+        loadComments(initialPage, 'append', true);
+      }
+
+      // (similarClearBtn は上で既に exitSpecialMode にバインド済み)
+
+      // -----------------------
+      // 典型度スライダー
+      // -----------------------
+      const centroidDetails = document.getElementById('centroid-details');
+      const emotionDetails = document.getElementById('emotion-details');
+
+      const centroidSlider = document.getElementById('centroid-slider');
+      const centroidVal = document.getElementById('centroid-val');
+      const centroidSearchBtn = document.getElementById('centroid-search-btn');
+      const centroidClear = document.getElementById('centroid-clear');
+      const centroidClearBtn = document.getElementById('centroid-clear-btn');
+      const centroidStatus = document.getElementById('centroid-status');
+      const centroidTopK = document.getElementById('centroid-top-k');
+
+      centroidSlider.addEventListener('input', () => {
+        centroidVal.textContent = centroidSlider.value + '%';
+      });
+
+      centroidSearchBtn.addEventListener('click', async () => {
+        centroidSearchBtn.disabled = true;
+        centroidSearchBtn.textContent = '検索中...';
+        centroidStatus.textContent = '検索中...';
+        try {
+          const position = parseInt(centroidSlider.value) / 100;
+          const params = new URLSearchParams({ position, platform: filters.platform, top_k: centroidTopK.value });
+          const resp = await fetch(`${rootPath}/api/u/${userLogin}/centroid?${params}`);
+          if (!resp.ok) throw new Error('Failed');
+          const data = await resp.json();
+          isSpecialMode = true;
+          centroidClear.style.display = 'block';
+          centroidDetails.open = true;
+          const posLabel = position < 0.3 ? '典型的な発言' : position > 0.7 ? '珍しい発言' : '中間の発言';
+          centroidStatus.textContent = `${posLabel} - ${data.items.length} 件`;
+          renderSearchResults(data.items, (c) => {
+            const sim = (c.similarity_score * 100).toFixed(1);
+            return `<span class="centroid-badge">重心類似度: ${sim}%</span>`;
+          });
+        } catch (e) {
+          centroidStatus.textContent = 'エラーが発生しました';
+        } finally {
+          centroidSearchBtn.disabled = false;
+          centroidSearchBtn.textContent = '検索';
+        }
+      });
+
+      centroidClearBtn.addEventListener('click', exitSpecialMode);
+
+      // -----------------------
+      // 感情スライダー
+      // -----------------------
+      const emotionSliders = document.querySelectorAll('#emotion-sliders input[type="range"]');
+      const emotionSearchBtn = document.getElementById('emotion-search-btn');
+      const emotionResetBtn = document.getElementById('emotion-reset-btn');
+      const emotionClear = document.getElementById('emotion-clear');
+      const emotionClearBtn = document.getElementById('emotion-clear-btn');
+      const emotionStatus = document.getElementById('emotion-status');
+      const emotionTopK = document.getElementById('emotion-top-k');
+
+      emotionSliders.forEach(slider => {
+        slider.addEventListener('input', () => {
+          slider.parentElement.querySelector('.slider-val').textContent = slider.value;
+        });
+      });
+
+      emotionResetBtn.addEventListener('click', () => {
+        emotionSliders.forEach(slider => {
+          slider.value = 0;
+          slider.parentElement.querySelector('.slider-val').textContent = '0';
+        });
+      });
+
+      emotionSearchBtn.addEventListener('click', async () => {
+        const weights = {};
+        let hasAny = false;
+        emotionSliders.forEach(slider => {
+          const val = parseInt(slider.value) / 100;
+          weights[slider.dataset.emotion] = val;
+          if (val > 0) hasAny = true;
+        });
+        if (!hasAny) { emotionStatus.textContent = 'スライダーを1つ以上動かしてください'; return; }
+
+        emotionSearchBtn.disabled = true;
+        emotionSearchBtn.textContent = '検索中...';
+        emotionStatus.textContent = '検索中...';
+        try {
+          const params = new URLSearchParams({ platform: filters.platform, top_k: emotionTopK.value, ...weights });
+          const resp = await fetch(`${rootPath}/api/u/${userLogin}/emotion?${params}`);
+          if (!resp.ok) throw new Error('Failed');
+          const data = await resp.json();
+          isSpecialMode = true;
+          emotionClear.style.display = 'block';
+          emotionDetails.open = true;
+          // アクティブな感情をラベル化
+          const labels = { joy:'笑い', surprise:'驚き', admiration:'称賛', anger:'怒り', sadness:'悲しみ', cheer:'応援' };
+          const activeList = Object.entries(weights).filter(([,v]) => v > 0).map(([k,v]) => `${labels[k] || k}:${Math.round(v*100)}%`).join(' + ');
+          emotionStatus.textContent = `${activeList} → ${data.items.length} 件`;
+          renderSearchResults(data.items, (c) => {
+            const sim = (c.similarity_score * 100).toFixed(1);
+            return `<span class="similarity-badge">一致度: ${sim}%</span>`;
+          });
+        } catch (e) {
+          emotionStatus.textContent = 'エラーが発生しました';
+        } finally {
+          emotionSearchBtn.disabled = false;
+          emotionSearchBtn.textContent = '感情検索';
+        }
+      });
+
+      emotionClearBtn.addEventListener('click', exitSpecialMode);
+    </script>
+  </body>
+</html>

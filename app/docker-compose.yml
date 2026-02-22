@@ -1,0 +1,26 @@
+name: twicome
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    environment:
+      - DEFAULT_PLATFORM=twitch
+      - ROOT_PATH=/twicome
+    volumes:
+      - ./:/app
+      - ../data/honban/targetusers.csv:/host/targetusers.csv
+      - ../faiss_config.json:/app/faiss_config.json:ro
+      - ../data/honban/faiss_data:/app/faiss_data:ro
+      - hf-cache:/root/.cache/huggingface
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
+volumes:
+  hf-cache:

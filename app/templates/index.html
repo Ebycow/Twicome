@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ツイコメ - Twitch VOD コメント検索</title>
+    <style>
+      :root {
+        --bg-primary: #f5f5f7;
+        --bg-secondary: #ffffff;
+        --bg-tertiary: #f0f0f2;
+        --text-primary: #1a1a2e;
+        --text-secondary: #555;
+        --text-muted: #888;
+        --accent: #9147ff;
+        --accent-hover: #772ce8;
+        --accent-light: rgba(145, 71, 255, 0.1);
+        --border: #e0e0e0;
+        --shadow: 0 2px 12px rgba(0,0,0,0.06);
+        --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+        --radius: 16px;
+        --radius-sm: 10px;
+        --gradient: linear-gradient(135deg, #9147ff 0%, #5c16c5 100%);
+        --gold: #f5a623;
+        --silver: #b0b0b0;
+        --bronze: #cd7f32;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg-primary: #0e0e10;
+          --bg-secondary: #18181b;
+          --bg-tertiary: #1f1f23;
+          --text-primary: #efeff1;
+          --text-secondary: #adadb8;
+          --text-muted: #777;
+          --border: #2f2f35;
+          --shadow: 0 2px 12px rgba(0,0,0,0.3);
+          --shadow-lg: 0 8px 32px rgba(0,0,0,0.4);
+          --accent-light: rgba(145, 71, 255, 0.15);
+        }
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        min-height: 100vh;
+      }
+
+      /* ─── Hero ─── */
+      .hero {
+        background: var(--gradient);
+        padding: 48px 24px 40px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+      .hero::before {
+        content: '';
+        position: absolute;
+        top: -50%; left: -50%;
+        width: 200%; height: 200%;
+        background: radial-gradient(circle at 30% 50%, rgba(255,255,255,0.08) 0%, transparent 60%);
+        pointer-events: none;
+      }
+      .hero-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #fff;
+        max-width: 680px;
+        margin: 0 auto 8px;
+        line-height: 1.5;
+        position: relative;
+      }
+      .hero-sub {
+        color: rgba(255,255,255,0.75);
+        font-size: 0.9rem;
+        position: relative;
+      }
+
+      /* ─── Container ─── */
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 0 20px 60px;
+      }
+
+      /* ─── Main Card ─── */
+      .main-card {
+        background: var(--bg-secondary);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-lg);
+        padding: 32px;
+        margin-top: -32px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .form-label {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+        letter-spacing: 0.02em;
+      }
+
+      .select-wrapper {
+        position: relative;
+      }
+      .select-wrapper select {
+        width: 100%;
+        padding: 12px 16px;
+        font-size: 1rem;
+        border: 2px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        appearance: none;
+        cursor: pointer;
+        transition: border-color 0.2s;
+      }
+      .select-wrapper select:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      .select-wrapper::after {
+        content: '\25BC';
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        pointer-events: none;
+      }
+
+      /* ─── Buttons ─── */
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 12px 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        text-decoration: none;
+        transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+        white-space: nowrap;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      }
+      .btn:active { transform: translateY(0); }
+
+      .btn-primary {
+        background: var(--gradient);
+        color: #fff;
+      }
+      .btn-secondary {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+      }
+
+      /* ─── Quick Links (specific users) ─── */
+      .quick-links {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 28px;
+      }
+      .quick-link {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 20px;
+        background: var(--accent-light);
+        border: 1px solid rgba(145, 71, 255, 0.2);
+        border-radius: var(--radius-sm);
+        text-decoration: none;
+        color: var(--accent);
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: background 0.2s, transform 0.15s;
+        min-width: 0;
+      }
+      .quick-link:hover {
+        background: rgba(145, 71, 255, 0.18);
+        transform: translateY(-1px);
+      }
+      .quick-link-icon {
+        width: 36px; height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+      }
+      .quick-link-icon-fallback {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(145, 71, 255, 0.2);
+        color: var(--accent);
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+
+      /* ─── Sub Links ─── */
+      .sub-links {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+      }
+      .sub-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        text-decoration: none;
+        transition: background 0.2s, color 0.2s;
+      }
+      .sub-link:hover {
+        background: var(--accent-light);
+        color: var(--accent);
+      }
+
+      .hint {
+        margin-top: 16px;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      /* ─── Divider ─── */
+      .divider {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 28px 0;
+      }
+
+      /* ─── Ranking Section ─── */
+      .section-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .ranking-card {
+        background: var(--bg-secondary);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 28px 32px;
+        margin-top: 28px;
+      }
+
+      .ranking-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .ranking-item {
+        display: flex;
+        gap: 14px;
+        padding: 14px 16px;
+        border-radius: var(--radius-sm);
+        background: var(--bg-tertiary);
+        transition: background 0.15s;
+        align-items: flex-start;
+        text-decoration: none;
+        color: inherit;
+      }
+      .ranking-item:hover {
+        background: var(--accent-light);
+      }
+
+      .rank-badge {
+        width: 28px; height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #fff;
+        flex-shrink: 0;
+        background: var(--text-muted);
+      }
+      .rank-1 { background: var(--gold); }
+      .rank-2 { background: var(--silver); }
+      .rank-3 { background: var(--bronze); }
+
+      .ranking-body {
+        flex: 1;
+        min-width: 0;
+      }
+      .ranking-comment {
+        font-size: 0.95rem;
+        font-weight: 500;
+        line-height: 1.5;
+        word-break: break-word;
+      }
+      .ranking-comment .emote {
+        height: 1.2em;
+        vertical-align: -0.15em;
+      }
+      .ranking-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        margin-top: 6px;
+        font-size: 0.78rem;
+        color: var(--text-muted);
+      }
+      .ranking-score {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--accent);
+      }
+
+      /* ─── Responsive ─── */
+      @media (max-width: 600px) {
+        .hero { padding: 36px 16px 32px; }
+        .hero-title { font-size: 1.15rem; }
+        .main-card { padding: 20px 16px; margin-top: -24px; }
+        .ranking-card { padding: 20px 16px; }
+        .actions { flex-direction: column; }
+        .btn { justify-content: center; }
+        .quick-links { grid-template-columns: 1fr; }
+        .quick-link { min-width: unset; }
+      }
+    </style>
+  </head>
+  <body>
+
+    <!-- Hero -->
+    <div class="hero">
+      <h1 class="hero-title">ツイコメ <small>Twicome</small></h1>
+      <p class="hero-sub">Twitch VOD コメント検索・分析ツール</p>
+    </div>
+
+    <div class="container">
+
+      <!-- Main Card -->
+      <div class="main-card">
+        <form method="post" action="{{ request.url_for('go') }}">
+          <input type="hidden" name="platform" value="twitch">
+
+          <label class="form-label">Twitch ユーザを選択</label>
+          <div class="select-wrapper">
+            <select name="login" required>
+              {% for user in users %}
+                <option value="{{ user.login }}"
+                  {% if user.login == selected_login %}selected{% endif %}>
+                  {{ user.login }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="actions">
+            <button class="btn btn-primary" type="submit">&#9654; コメント一覧を表示</button>
+            <a id="stats-link" class="btn btn-secondary" href="{{ request.url_for('user_stats_page', login=selected_login_for_links) }}?platform=twitch">&#128202; 統計ページ</a>
+            <a id="quiz-link" class="btn btn-secondary" href="{{ request.url_for('quiz_page', login=selected_login_for_links) }}?platform=twitch">&#127922; コメント当てクイズで遊ぶ</a>
+          </div>
+        </form>
+
+        {% if quick_links %}
+        <!-- Quick Links -->
+        <div class="quick-links">
+          {% for quick_link in quick_links %}
+          <a class="quick-link" href="{{ request.url_for('user_comments_page', login=quick_link.login) }}?platform={{ quick_link.platform }}">
+            {% if quick_link.profile_image_url %}
+            <img class="quick-link-icon" src="{{ quick_link.profile_image_url }}" alt="{{ quick_link.alt }}">
+            {% else %}
+            <span class="quick-link-icon quick-link-icon-fallback">{{ quick_link.alt[0] | upper }}</span>
+            {% endif %}
+            <span>{{ quick_link.label }}</span>
+          </a>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <hr class="divider">
+
+        <!-- Sub Links -->
+        <div class="sub-links">
+          <a class="sub-link" href="{{ request.url_for('add_user_page') }}">&#43; 配信者を追加</a>
+          <a class="sub-link" href="{{ request.url_for('manual_page') }}">&#128214; 使い方ガイド</a>
+        </div>
+
+        <p class="hint">例: /u/someone?platform=twitch でも直接アクセスできます。</p>
+      </div>
+
+      <!-- Ranking -->
+      {% if popular_comments %}
+      <div class="ranking-card">
+        <h2 class="section-title">&#127942; 人気コメントランキング</h2>
+        <ol class="ranking-list">
+          {% for comment in popular_comments %}
+          <a class="ranking-item" href="{{ request.url_for('user_comments_page', login=comment.commenter_login_snapshot) }}?cursor={{ comment.comment_id }}">
+            <div class="rank-badge {% if loop.index <= 3 %}rank-{{ loop.index }}{% endif %}">{{ loop.index }}</div>
+            <div class="ranking-body">
+              <div class="ranking-comment">{{ comment.body_html | safe }}</div>
+              <div class="ranking-meta">
+                <span>{{ comment.commenter_login_snapshot }}{% if comment.commenter_display_name_snapshot %} ({{ comment.commenter_display_name_snapshot }}){% endif %}</span>
+                <span>{{ comment.vod_title }} by {{ comment.owner_login }}{% if comment.owner_display_name %} ({{ comment.owner_display_name }}){% endif %}</span>
+              </div>
+            </div>
+            <div class="ranking-score" title="スコア: {{ comment.score }}">
+              <span>{{ comment.score }}</span>
+            </div>
+          </a>
+          {% endfor %}
+        </ol>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <script>
+      const loginSelect = document.querySelector('select[name="login"]');
+      const statsLink = document.getElementById('stats-link');
+      const quizLink = document.getElementById('quiz-link');
+      const statsPathTemplate = {{ (request.url_for('user_stats_page', login='__LOGIN_PLACEHOLDER__') | string) | tojson }};
+      const quizPathTemplate = {{ (request.url_for('quiz_page', login='__LOGIN_PLACEHOLDER__') | string) | tojson }};
+
+      function pathForLogin(template, login) {
+        return template.replace('__LOGIN_PLACEHOLDER__', encodeURIComponent(login));
+      }
+
+      loginSelect.addEventListener('change', function() {
+        const selectedLogin = this.value;
+        statsLink.href = `${pathForLogin(statsPathTemplate, selectedLogin)}?platform=twitch`;
+        quizLink.href = `${pathForLogin(quizPathTemplate, selectedLogin)}?platform=twitch`;
+      });
+    </script>
+  </body>
+</html>

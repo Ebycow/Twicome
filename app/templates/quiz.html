@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>コメント当てクイズ{% if user %} - {{ user.display_name or user.login }}{% endif %}</title>
+    <style>
+      :root {
+        --bg-color: #ffffff;
+        --text-color: #111111;
+        --card-border: #ddd;
+        --card-bg: #ffffff;
+        --meta-color: #666;
+        --link-color: #007bff;
+        --button-bg: #f0f0f0;
+        --button-text: #111111;
+        --correct-color: #4caf50;
+        --wrong-color: #f44336;
+        --heart-color: #e74c3c;
+        --accent-1: #667eea;
+        --accent-2: #764ba2;
+        --btn-target-bg: #2196f3;
+        --btn-target-hover: #1976d2;
+        --btn-other-bg: #ff9800;
+        --btn-other-hover: #e65100;
+        --overlay-bg: rgba(0,0,0,0.03);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg-color: #1a1a1a;
+          --text-color: #e0e0e0;
+          --card-border: #444;
+          --card-bg: #2a2a2a;
+          --meta-color: #999;
+          --link-color: #6db3f2;
+          --button-bg: #3a3a3a;
+          --button-text: #e0e0e0;
+          --correct-color: #66bb6a;
+          --wrong-color: #ef5350;
+          --heart-color: #ef5350;
+          --accent-1: #7c8ef7;
+          --accent-2: #9b6fc4;
+          --btn-target-bg: #1976d2;
+          --btn-target-hover: #1565c0;
+          --btn-other-bg: #e65100;
+          --btn-other-hover: #bf360c;
+          --overlay-bg: rgba(0,0,0,0.15);
+        }
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        background: var(--bg-color);
+        color: var(--text-color);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      /* --- Nav --- */
+      .nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 24px;
+        border-bottom: 1px solid var(--card-border);
+        background: var(--card-bg);
+      }
+      .nav a {
+        color: var(--link-color);
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+      .nav a:hover { text-decoration: underline; }
+      .nav-links { display: flex; gap: 16px; }
+
+      /* --- Start Screen --- */
+      .start-card {
+        max-width: 500px;
+        margin: 60px auto;
+        padding: 40px 32px;
+        border-radius: 24px;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        text-align: center;
+        animation: fadeInUp 0.5s ease-out;
+      }
+      .quiz-icon {
+        font-size: 3rem;
+        margin-bottom: 8px;
+        background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 900;
+      }
+      .start-card h1 {
+        font-size: 1.6rem;
+        margin-bottom: 24px;
+      }
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        justify-content: center;
+        margin-bottom: 20px;
+      }
+      .user-avatar {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid var(--accent-1);
+      }
+      .user-name {
+        font-size: 1.2rem;
+        font-weight: bold;
+      }
+      .meta {
+        color: var(--meta-color);
+        font-size: 0.85rem;
+      }
+      .quiz-desc {
+        color: var(--meta-color);
+        line-height: 1.6;
+        margin-bottom: 24px;
+        font-size: 0.95rem;
+      }
+      .quiz-desc strong {
+        color: var(--text-color);
+      }
+      .rules {
+        display: flex;
+        justify-content: center;
+        gap: 24px;
+        margin-bottom: 28px;
+      }
+      .rule-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+      .rule-icon { font-size: 1.5rem; }
+      .rule-text { font-size: 0.8rem; color: var(--meta-color); }
+
+      /* --- Buttons --- */
+      .quiz-btn {
+        display: inline-block;
+        padding: 14px 32px;
+        border-radius: 14px;
+        border: none;
+        font-size: 1.05rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.12s, box-shadow 0.12s, opacity 0.12s;
+        text-decoration: none;
+        color: #fff;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .quiz-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+      }
+      .quiz-btn:active:not(:disabled) {
+        transform: translateY(1px);
+        box-shadow: none;
+      }
+      .quiz-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .quiz-btn.primary {
+        background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+        font-size: 1.2rem;
+        padding: 16px 48px;
+      }
+      .quiz-btn.secondary {
+        background: var(--button-bg);
+        color: var(--button-text);
+      }
+
+      /* --- Game Header --- */
+      .game-header {
+        max-width: 560px;
+        margin: 20px auto 0;
+        padding: 14px 20px;
+        border-radius: 16px;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        animation: fadeIn 0.3s;
+      }
+      .lives { display: flex; gap: 4px; }
+      .heart {
+        font-size: 1.6rem;
+        transition: all 0.3s;
+        display: inline-block;
+      }
+      .heart.lost {
+        animation: heartBreak 0.6s forwards;
+      }
+      .stat-box {
+        text-align: center;
+      }
+      .stat-label {
+        font-size: 0.7rem;
+        color: var(--meta-color);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .stat-value {
+        font-size: 1.4rem;
+        font-weight: 800;
+        line-height: 1.2;
+      }
+      .stat-value.pop {
+        animation: scorePop 0.35s ease-out;
+      }
+
+      /* --- Question Card --- */
+      .question-container {
+        perspective: 1000px;
+        max-width: 560px;
+        margin: 20px auto;
+      }
+      .question-card {
+        padding: 32px 28px;
+        border-radius: 20px;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        min-height: 140px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+      }
+      .question-card.slide-in {
+        animation: slideInRight 0.35s ease-out;
+      }
+      .question-card.correct-flash {
+        animation: correctFlash 0.6s;
+      }
+      .question-card.wrong-shake {
+        animation: shake 0.45s;
+      }
+      .question-number {
+        position: absolute;
+        top: 12px;
+        left: 16px;
+        font-size: 0.75rem;
+        color: var(--meta-color);
+        font-weight: 600;
+      }
+      .vod-context {
+        font-size: 0.8rem;
+        color: var(--meta-color);
+        margin-bottom: 12px;
+        text-align: center;
+      }
+      .comment-body {
+        font-size: 1.5rem;
+        font-weight: 700;
+        text-align: center;
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.5;
+      }
+      .comment-body .emote {
+        height: 1.25em;
+        vertical-align: -0.15em;
+      }
+
+      /* --- Answer Buttons --- */
+      .answer-buttons {
+        display: flex;
+        gap: 16px;
+        max-width: 560px;
+        margin: 16px auto 0;
+      }
+      .target-btn {
+        background: var(--btn-target-bg);
+        flex: 1;
+        padding: 18px 12px;
+        font-size: 1rem;
+      }
+      .target-btn:hover:not(:disabled) { background: var(--btn-target-hover); }
+      .other-btn {
+        background: var(--btn-other-bg);
+        flex: 1;
+        padding: 18px 12px;
+        font-size: 1rem;
+      }
+      .other-btn:hover:not(:disabled) { background: var(--btn-other-hover); }
+
+      /* --- Result Overlay --- */
+      .result-overlay {
+        max-width: 560px;
+        margin: 12px auto 0;
+        padding: 16px;
+        border-radius: 14px;
+        text-align: center;
+        animation: fadeIn 0.2s;
+      }
+      .result-overlay.correct {
+        background: rgba(76,175,80,0.12);
+        border: 1px solid var(--correct-color);
+      }
+      .result-overlay.wrong {
+        background: rgba(244,67,54,0.12);
+        border: 1px solid var(--wrong-color);
+      }
+      .result-text {
+        font-size: 1.4rem;
+        font-weight: 800;
+        margin-bottom: 4px;
+      }
+      .result-commenter {
+        font-size: 0.9rem;
+        color: var(--meta-color);
+      }
+
+      /* --- Game Over Screen --- */
+      .gameover-card {
+        max-width: 500px;
+        margin: 40px auto;
+        padding: 40px 32px;
+        border-radius: 24px;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        text-align: center;
+        animation: fadeInUp 0.5s ease-out;
+      }
+      .gameover-title {
+        font-size: 1.8rem;
+        font-weight: 900;
+        margin-bottom: 8px;
+        color: var(--wrong-color);
+        letter-spacing: 0.05em;
+      }
+      .gameover-sub {
+        color: var(--meta-color);
+        margin-bottom: 24px;
+        font-size: 0.9rem;
+      }
+      .final-score {
+        margin-bottom: 28px;
+      }
+      .score-big {
+        font-size: 5rem;
+        font-weight: 900;
+        line-height: 1;
+        background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: scoreReveal 0.6s ease-out;
+      }
+      .score-unit {
+        font-size: 1.2rem;
+        color: var(--meta-color);
+        margin-top: 4px;
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 28px;
+      }
+      .stats-grid .stat-item {
+        padding: 12px 8px;
+        border-radius: 12px;
+        background: var(--overlay-bg);
+      }
+      .stats-grid .s-value {
+        font-size: 1.5rem;
+        font-weight: 800;
+      }
+      .stats-grid .s-label {
+        font-size: 0.7rem;
+        color: var(--meta-color);
+        margin-top: 2px;
+      }
+      .gameover-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      /* --- Confetti --- */
+      .confetti {
+        position: fixed;
+        width: 10px;
+        height: 10px;
+        pointer-events: none;
+        z-index: 9999;
+      }
+      .confetti.circle { border-radius: 50%; }
+      .confetti.square { border-radius: 2px; }
+      .confetti.strip { width: 4px; height: 14px; border-radius: 2px; }
+
+      /* --- Loading Spinner --- */
+      .spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid var(--card-border);
+        border-top-color: var(--accent-1);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        margin: 24px auto;
+      }
+
+      /* --- Animations --- */
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(30px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes slideInRight {
+        from { transform: translateX(80px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+      @keyframes correctFlash {
+        0% { box-shadow: 0 0 0 0 rgba(76,175,80,0.5); }
+        40% { box-shadow: 0 0 40px 8px rgba(76,175,80,0.35); }
+        100% { box-shadow: 0 0 0 0 rgba(76,175,80,0); }
+      }
+      @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        15% { transform: translateX(-12px); }
+        30% { transform: translateX(12px); }
+        45% { transform: translateX(-8px); }
+        60% { transform: translateX(8px); }
+        75% { transform: translateX(-4px); }
+        90% { transform: translateX(4px); }
+      }
+      @keyframes heartBreak {
+        0% { transform: scale(1); opacity: 1; }
+        25% { transform: scale(1.4); }
+        50% { transform: scale(0.6); opacity: 0.6; }
+        100% { transform: scale(0) rotate(30deg); opacity: 0; }
+      }
+      @keyframes scorePop {
+        0% { transform: scale(1); }
+        40% { transform: scale(1.35); color: var(--correct-color); }
+        100% { transform: scale(1); }
+      }
+      @keyframes scoreReveal {
+        from { transform: scale(0.3); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      /* --- Responsive --- */
+      @media (max-width: 600px) {
+        .start-card, .gameover-card { margin: 24px 16px; padding: 28px 20px; }
+        .game-header { margin: 12px 16px 0; flex-wrap: wrap; justify-content: center; }
+        .question-container { margin: 12px 16px; }
+        .answer-buttons { flex-direction: column; margin: 12px 16px 0; }
+        .result-overlay { margin: 8px 16px 0; }
+        .comment-body { font-size: 1.2rem; }
+        .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        .quiz-icon { font-size: 2.4rem; }
+        .start-card h1 { font-size: 1.3rem; }
+        .score-big { font-size: 3.5rem; }
+        .rules { gap: 16px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="nav">
+      <div class="nav-links">
+        {% if user %}
+        <a href="{{ request.url_for('user_comments_page', login=user.login) }}?platform={{ platform }}">{{ user.display_name or user.login }} のコメント</a>
+        <a href="{{ request.url_for('user_stats_page', login=user.login) }}?platform={{ platform }}">統計</a>
+        {% endif %}
+      </div>
+      <div class="nav-links">
+        <a href="{{ request.url_for('index') }}">トップに戻る</a>
+      </div>
+    </div>
+
+    {% if error %}
+    <div class="start-card">
+      <p>{{ error }}</p>
+      <a href="{{ request.url_for('index') }}" class="quiz-btn secondary" style="margin-top:16px;">トップに戻る</a>
+    </div>
+    {% else %}
+
+    <!-- ===== Start Screen ===== -->
+    <div id="start-screen">
+      <div class="start-card">
+        <div class="quiz-icon">?!</div>
+        <h1>コメント当てクイズ</h1>
+        <div class="user-info">
+          {% if user.profile_image_url %}
+          <img src="{{ user.profile_image_url }}" class="user-avatar" alt="">
+          {% endif %}
+          <div style="text-align:left;">
+            <div class="user-name">{{ user.display_name or user.login }}</div>
+            <div class="meta">{{ "{:,}".format(comment_count) }} コメント収録済み</div>
+          </div>
+        </div>
+        <p class="quiz-desc">
+          表示されるコメントが<br>
+          <strong>{{ user.display_name or user.login }}</strong> の発言かどうかを当てよう！
+        </p>
+        <div class="rules">
+          <div class="rule-item">
+            <div class="rule-icon">&#x2764;&#xFE0F;</div>
+            <div class="rule-text">ライフ 3</div>
+          </div>
+          <div class="rule-item">
+            <div class="rule-icon">&#x274C;</div>
+            <div class="rule-text">3ミスで終了</div>
+          </div>
+          <div class="rule-item">
+            <div class="rule-icon">&#x1F3AF;</div>
+            <div class="rule-text">正解 = 1点</div>
+          </div>
+        </div>
+        <button id="start-btn" class="quiz-btn primary">スタート</button>
+      </div>
+    </div>
+
+    <!-- ===== Game Screen ===== -->
+    <div id="game-screen" style="display:none;">
+      <div class="game-header">
+        <div class="lives" id="lives"></div>
+        <div class="stat-box">
+          <div class="stat-label">スコア</div>
+          <div class="stat-value" id="score-value">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">連続</div>
+          <div class="stat-value" id="streak-value">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">進捗</div>
+          <div class="stat-value"><span id="progress-value">1</span><span style="font-size:0.8rem;font-weight:400;color:var(--meta-color);">/<span id="total-value">30</span></span></div>
+        </div>
+      </div>
+
+      <div class="question-container">
+        <div id="question-card" class="question-card">
+          <div class="question-number" id="question-number">Q1</div>
+          <div class="vod-context" id="vod-context"></div>
+          <div class="comment-body" id="comment-body"></div>
+        </div>
+      </div>
+
+      <div class="answer-buttons">
+        <button id="btn-target" class="quiz-btn target-btn"></button>
+        <button id="btn-other" class="quiz-btn other-btn">他の人の発言</button>
+      </div>
+
+      <div id="result-overlay" style="display:none;"></div>
+    </div>
+
+    <!-- ===== Game Over Screen ===== -->
+    <div id="gameover-screen" style="display:none;">
+      <div class="gameover-card">
+        <div class="gameover-title">GAME OVER</div>
+        <div class="gameover-sub" id="gameover-sub"></div>
+        <div class="final-score">
+          <div class="score-big" id="final-score">0</div>
+          <div class="score-unit">点</div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="s-value" id="stat-correct" style="color:var(--correct-color);">0</div>
+            <div class="s-label">正解</div>
+          </div>
+          <div class="stat-item">
+            <div class="s-value" id="stat-wrong" style="color:var(--wrong-color);">0</div>
+            <div class="s-label">不正解</div>
+          </div>
+          <div class="stat-item">
+            <div class="s-value" id="stat-accuracy">0%</div>
+            <div class="s-label">正答率</div>
+          </div>
+          <div class="stat-item">
+            <div class="s-value" id="stat-best-streak" style="color:var(--accent-1);">0</div>
+            <div class="s-label">最大連続</div>
+          </div>
+        </div>
+        <div class="gameover-actions">
+          <button id="retry-btn" class="quiz-btn primary" style="font-size:1rem;padding:14px 32px;">もう一度プレイ</button>
+          <a id="comments-link" class="quiz-btn secondary" style="padding:14px 32px;" href="{{ request.url_for('user_comments_page', login=user.login) }}?platform={{ platform }}">コメント一覧へ</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Data ===== -->
+    <script type="application/json" id="quiz-data">
+      {
+        "login": {{ user.login | tojson }},
+        "display_name": {{ (user.display_name or user.login) | tojson }},
+        "platform": {{ platform | tojson }},
+        "root_path": {{ request.scope.get('root_path', '') | tojson }}
+      }
+    </script>
+
+    <script>
+    (function() {
+      'use strict';
+
+      var cfg = JSON.parse(document.getElementById('quiz-data').textContent);
+      var normalizedRootPath = (typeof cfg.root_path === 'string') ? cfg.root_path.trim() : '';
+      var rootPath = (normalizedRootPath && normalizedRootPath !== '/') ? normalizedRootPath.replace(/\/+$/, '') : '';
+      var displayName = cfg.display_name;
+
+      // DOM
+      var startScreen = document.getElementById('start-screen');
+      var gameScreen = document.getElementById('game-screen');
+      var gameoverScreen = document.getElementById('gameover-screen');
+      var startBtn = document.getElementById('start-btn');
+      var retryBtn = document.getElementById('retry-btn');
+      var btnTarget = document.getElementById('btn-target');
+      var btnOther = document.getElementById('btn-other');
+      var scoreEl = document.getElementById('score-value');
+      var streakEl = document.getElementById('streak-value');
+      var progressEl = document.getElementById('progress-value');
+      var totalEl = document.getElementById('total-value');
+      var questionCard = document.getElementById('question-card');
+      var commentBody = document.getElementById('comment-body');
+      var vodContext = document.getElementById('vod-context');
+      var questionNumber = document.getElementById('question-number');
+      var resultOverlay = document.getElementById('result-overlay');
+      var livesContainer = document.getElementById('lives');
+
+      // Set target button text
+      btnTarget.textContent = displayName + ' の発言';
+
+      // State
+      var questions = [];
+      var idx = 0;
+      var score = 0;
+      var lives = 3;
+      var streak = 0;
+      var bestStreak = 0;
+      var totalCorrect = 0;
+      var totalWrong = 0;
+      var answering = false;
+
+      function escapeHtml(s) {
+        if (s == null) return '';
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+
+      function resetHearts() {
+        livesContainer.innerHTML = '';
+        for (var i = 0; i < 3; i++) {
+          var span = document.createElement('span');
+          span.className = 'heart';
+          span.innerHTML = '&#x2764;&#xFE0F;';
+          livesContainer.appendChild(span);
+        }
+      }
+
+      // --- Confetti ---
+      function spawnConfetti() {
+        var colors = ['#f44336','#ff9800','#ffeb3b','#4caf50','#2196f3','#9c27b0','#e91e63'];
+        var shapes = ['circle','square','strip'];
+        for (var i = 0; i < 24; i++) {
+          var el = document.createElement('div');
+          var shape = shapes[Math.floor(Math.random()*shapes.length)];
+          el.className = 'confetti ' + shape;
+          el.style.background = colors[Math.floor(Math.random()*colors.length)];
+          el.style.left = (Math.random()*100) + 'vw';
+          el.style.top = (20 + Math.random()*30) + 'vh';
+          el.style.opacity = '1';
+          document.body.appendChild(el);
+
+          animateConfetti(el);
+        }
+      }
+
+      function animateConfetti(el) {
+        var startX = parseFloat(el.style.left);
+        var drift = (Math.random()-0.5)*200;
+        var duration = 900 + Math.random()*700;
+        var delay = Math.random()*200;
+        var startTime = null;
+
+        setTimeout(function() {
+          startTime = performance.now();
+          requestAnimationFrame(function step(ts) {
+            var elapsed = ts - startTime;
+            var t = Math.min(elapsed / duration, 1);
+            var ease = t < 0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+            el.style.transform = 'translateY(' + (ease*350) + 'px) translateX(' + (drift*t) + 'px) rotate(' + (t*720) + 'deg)';
+            el.style.opacity = String(1-t);
+            if (t < 1) {
+              requestAnimationFrame(step);
+            } else {
+              el.remove();
+            }
+          });
+        }, delay);
+      }
+
+      // --- Start ---
+      startBtn.addEventListener('click', startGame);
+      retryBtn.addEventListener('click', startGame);
+
+      function startGame() {
+        idx = 0;
+        score = 0;
+        lives = 3;
+        streak = 0;
+        bestStreak = 0;
+        totalCorrect = 0;
+        totalWrong = 0;
+        answering = false;
+
+        startBtn.disabled = true;
+        retryBtn.disabled = true;
+        startBtn.textContent = '読み込み中...';
+
+        fetch(rootPath + '/api/u/' + encodeURIComponent(cfg.login) + '/quiz/start?platform=' + encodeURIComponent(cfg.platform) + '&count=30', {
+          headers: {'X-Requested-With': 'XMLHttpRequest'}
+        })
+        .then(function(r) {
+          if (!r.ok) throw new Error('API error');
+          return r.json();
+        })
+        .then(function(data) {
+          questions = data.questions;
+          if (questions.length === 0) {
+            alert('コメントが少なすぎてクイズを生成できませんでした。');
+            return;
+          }
+
+          startScreen.style.display = 'none';
+          gameoverScreen.style.display = 'none';
+          gameScreen.style.display = 'block';
+
+          resetHearts();
+          scoreEl.textContent = '0';
+          streakEl.textContent = '0';
+          totalEl.textContent = String(questions.length);
+          resultOverlay.style.display = 'none';
+
+          showQuestion();
+        })
+        .catch(function(err) {
+          console.error(err);
+          alert('クイズの読み込みに失敗しました。');
+        })
+        .finally(function() {
+          startBtn.disabled = false;
+          retryBtn.disabled = false;
+          startBtn.textContent = 'スタート';
+        });
+      }
+
+      // --- Show Question ---
+      function showQuestion() {
+        if (idx >= questions.length || lives <= 0) {
+          showGameOver();
+          return;
+        }
+
+        var q = questions[idx];
+        progressEl.textContent = String(idx + 1);
+        questionNumber.textContent = 'Q' + (idx + 1);
+
+        // Reset card animation
+        questionCard.className = 'question-card';
+        void questionCard.offsetWidth;
+        questionCard.classList.add('slide-in');
+
+        if (q.body_html) {
+          commentBody.innerHTML = q.body_html;
+        } else {
+          commentBody.textContent = q.body;
+        }
+        vodContext.textContent = q.vod_title ? '配信: ' + escapeHtml(q.vod_title) : '';
+
+        btnTarget.disabled = false;
+        btnOther.disabled = false;
+        answering = false;
+        resultOverlay.style.display = 'none';
+      }
+
+      // --- Answer ---
+      btnTarget.addEventListener('click', function() { handleAnswer(true); });
+      btnOther.addEventListener('click', function() { handleAnswer(false); });
+
+      function handleAnswer(guessedTarget) {
+        if (answering) return;
+        answering = true;
+        btnTarget.disabled = true;
+        btnOther.disabled = true;
+
+        var q = questions[idx];
+        var isCorrect = (guessedTarget === q.is_target);
+
+        if (isCorrect) {
+          onCorrect(q);
+        } else {
+          onWrong(q);
+        }
+
+        // Show result
+        var overlayClass = 'result-overlay ' + (isCorrect ? 'correct' : 'wrong');
+        resultOverlay.className = overlayClass;
+        resultOverlay.style.display = 'block';
+        resultOverlay.innerHTML =
+          '<div class="result-text" style="color:var(--' + (isCorrect ? 'correct' : 'wrong') + '-color);">' +
+          (isCorrect ? '正解!' : '不正解...') + '</div>' +
+          '<div class="result-commenter">投稿者: ' + escapeHtml(q.actual_commenter_display_name) + '</div>';
+
+        setTimeout(function() {
+          idx++;
+          showQuestion();
+        }, 1400);
+      }
+
+      function onCorrect(q) {
+        score++;
+        totalCorrect++;
+        streak++;
+        if (streak > bestStreak) bestStreak = streak;
+
+        scoreEl.textContent = String(score);
+        scoreEl.classList.remove('pop');
+        void scoreEl.offsetWidth;
+        scoreEl.classList.add('pop');
+
+        streakEl.textContent = String(streak);
+
+        questionCard.className = 'question-card correct-flash';
+        spawnConfetti();
+      }
+
+      function onWrong(q) {
+        totalWrong++;
+        lives--;
+        streak = 0;
+        streakEl.textContent = '0';
+
+        questionCard.className = 'question-card wrong-shake';
+
+        var hearts = livesContainer.querySelectorAll('.heart:not(.lost)');
+        if (hearts.length > 0) {
+          hearts[hearts.length - 1].classList.add('lost');
+        }
+      }
+
+      // --- Game Over ---
+      function showGameOver() {
+        gameScreen.style.display = 'none';
+        gameoverScreen.style.display = 'block';
+
+        var answered = totalCorrect + totalWrong;
+        var accuracy = answered > 0 ? Math.round((totalCorrect / answered) * 100) : 0;
+
+        // Motivational message
+        var sub = '';
+        if (score >= 20) sub = displayName + ' の専門家ですね!';
+        else if (score >= 10) sub = 'なかなかの実力です!';
+        else if (score >= 5) sub = 'まだまだこれから!';
+        else sub = 'もっと ' + displayName + ' のコメントを読もう!';
+        document.getElementById('gameover-sub').textContent = sub;
+
+        // Animate score count-up
+        var finalScoreEl = document.getElementById('final-score');
+        animateCountUp(finalScoreEl, score, 600);
+
+        document.getElementById('stat-correct').textContent = String(totalCorrect);
+        document.getElementById('stat-wrong').textContent = String(totalWrong);
+        document.getElementById('stat-accuracy').textContent = accuracy + '%';
+        document.getElementById('stat-best-streak').textContent = String(bestStreak);
+
+        if (score >= 10) spawnConfetti();
+      }
+
+      function animateCountUp(el, target, duration) {
+        var start = performance.now();
+        el.textContent = '0';
+        if (target === 0) return;
+
+        requestAnimationFrame(function step(ts) {
+          var t = Math.min((ts - start) / duration, 1);
+          var ease = 1 - Math.pow(1 - t, 3);
+          el.textContent = String(Math.round(ease * target));
+          if (t < 1) requestAnimationFrame(step);
+        });
+      }
+
+    })();
+    </script>
+    {% endif %}
+  </body>
+</html>

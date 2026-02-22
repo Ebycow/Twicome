@@ -1,0 +1,26 @@
+.venv
+__pycache__
+.claude
+
+# config
+.env
+.env.lock
+.env.development
+
+# faiss search
+faiss_config.json
+faiss_config.*.json
+app/faiss_data/*.faiss
+app/faiss_data/*.meta.json
+
+# community note
+oldcommunitylog
+batch/prompts/community_note_system_prompt.txt
+
+# batch data
+batch_twitch_vods_all.csv
+targetusers.csv
+logs
+comments
+data/
+

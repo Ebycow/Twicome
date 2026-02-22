@@ -1,0 +1,14 @@
+{
+  "indexed_users": ["userid"],
+  "embedding_model": "hotchpotch/static-embedding-japanese",
+  "batch_size": 512,
+  "faiss_data_dir": "data/default/faiss_data",
+  "emotion_anchors": {
+    "joy": "草 www おもしろい 笑った 楽しい 嬉しい ワロタ 最高",
+    "surprise": "えっ まじか すごい やばい うそ びっくり マジ!?",
+    "admiration": "すごい うまい 神 上手 天才 かっこいい さすが 感動",
+    "anger": "ひどい 最悪 ふざけるな きもい うざい イライラ",
+    "sadness": "悲しい つらい かなしい 泣いた しんどい 残念",
+    "cheer": "がんばれ いけ ファイト 応援 頑張って いいぞ ナイス"
+  }
+}

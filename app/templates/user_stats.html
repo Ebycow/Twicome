@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>統計 - {{ user.login if user else 'Unknown' }}</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      :root {
+        --bg-color: #ffffff;
+        --text-color: #111111;
+        --card-border: #ddd;
+        --card-bg: #ffffff;
+        --meta-color: #666;
+        --error-bg: #fff3f3;
+        --error-border: #f2b3b3;
+        --link-color: #007bff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg-color: #1a1a1a;
+          --text-color: #e0e0e0;
+          --card-border: #444;
+          --card-bg: #2a2a2a;
+          --meta-color: #999;
+          --error-bg: #3a2020;
+          --error-border: #6b3a3a;
+          --link-color: #6db3f2;
+        }
+      }
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: var(--bg-color);
+        color: var(--text-color);
+      }
+      a { color: var(--link-color); }
+      h1 { margin: 0; }
+      h2 { margin: 0; }
+      p { margin: 0; }
+
+      .main {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .top {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .top-title {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .top-links {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .card {
+        padding: 18px;
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        background: var(--card-bg);
+      }
+      .card > h2 {
+        margin-bottom: 10px;
+      }
+      .error {
+        background: var(--error-bg);
+        border-color: var(--error-border);
+      }
+      .meta {
+        color: var(--meta-color);
+        font-size: 0.9rem;
+      }
+      .card .meta + .meta {
+        margin-top: 6px;
+      }
+
+      .cn-layout {
+        display: grid;
+        grid-template-columns: minmax(280px, 1.2fr) minmax(300px, 1fr);
+        gap: 24px;
+        align-items: start;
+        margin-top: 14px;
+      }
+      .cn-subheading {
+        font-size: 0.9rem;
+        font-weight: bold;
+        margin-bottom: 8px;
+      }
+      .danger-chart {
+        height: 220px;
+      }
+      .danger-note {
+        margin-top: 4px;
+        font-size: 0.8rem;
+        text-align: center;
+      }
+      .status-block {
+        margin-top: 20px;
+      }
+      .status-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .status-item + .status-item {
+        margin-top: 4px;
+      }
+      .status-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        flex-shrink: 0;
+      }
+      .status-text {
+        font-size: 0.85rem;
+      }
+      .radar-chart-wrap {
+        min-width: 300px;
+        max-width: 450px;
+        height: 350px;
+        justify-self: center;
+        width: 100%;
+      }
+
+      .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .chart-box {
+        width: 100%;
+        max-width: none;
+        height: 420px;
+        margin: 0;
+      }
+      .chart-box canvas {
+        width: 100% !important;
+        height: 100% !important;
+      }
+
+      .owners-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        min-width: 420px;
+        margin-top: 10px;
+      }
+      .owners-table thead tr {
+        border-bottom: 2px solid var(--card-border);
+      }
+      .owners-table tbody tr {
+        border-bottom: 1px solid var(--card-border);
+      }
+      .owners-table th,
+      .owners-table td {
+        padding: 8px;
+      }
+      .owners-table th {
+        text-align: left;
+      }
+      .owners-table th.sortable {
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+      }
+      .owners-table th.sortable::after {
+        content: " \2195";
+        color: var(--meta-color);
+        font-size: 0.8em;
+      }
+      .owners-table th.sortable[data-sort-state="asc"]::after {
+        content: " \25b2";
+      }
+      .owners-table th.sortable[data-sort-state="desc"]::after {
+        content: " \25bc";
+      }
+      .owners-table th:nth-child(1),
+      .owners-table td:nth-child(1),
+      .owners-table th:nth-child(3),
+      .owners-table td:nth-child(3),
+      .owners-table th:nth-child(4),
+      .owners-table td:nth-child(4),
+      .owners-table th:nth-child(5),
+      .owners-table td:nth-child(5),
+      .owners-table th:nth-child(6),
+      .owners-table td:nth-child(6) {
+        text-align: right;
+      }
+
+      .impact-chart-wrap {
+        max-width: 760px;
+        height: 400px;
+        margin-top: 12px;
+      }
+      .table-wrap {
+        overflow-x: auto;
+        margin-top: 16px;
+      }
+      .stats-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+        min-width: 900px;
+      }
+      .stats-table thead tr {
+        border-bottom: 2px solid var(--card-border);
+      }
+      .stats-table tbody tr {
+        border-bottom: 1px solid var(--card-border);
+      }
+      .stats-table tbody tr.total-row {
+        border-top: 2px solid var(--card-border);
+        border-bottom: none;
+        font-weight: bold;
+      }
+      .stats-table th,
+      .stats-table td {
+        padding: 8px;
+      }
+      .stats-table th {
+        text-align: left;
+      }
+      .stats-table th:not(:first-child),
+      .stats-table td:not(:first-child) {
+        text-align: right;
+      }
+
+      @media (max-width: 960px) {
+        body {
+          padding: 16px;
+        }
+        .cn-layout {
+          grid-template-columns: 1fr;
+        }
+        .radar-chart-wrap {
+          max-width: none;
+          height: 320px;
+        }
+        .charts-grid {
+          grid-template-columns: 1fr;
+        }
+        .chart-box {
+          height: 360px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="main">
+      <div class="top">
+        <div class="top-title">
+          <h1>統計</h1>
+          {% if user %}
+            <div class="meta">
+              {{ platform }}/{{ user.login }}{% if user.display_name %}（{{ user.display_name }}）{% endif %}
+            </div>
+          {% endif %}
+        </div>
+        <div class="top-links">
+          <a href="{{ request.url_for('manual_page') }}">使い方ガイド</a>
+          <a href="{{ request.url_for('index') }}">← 検索に戻る</a>
+        </div>
+      </div>
+
+      {% if error %}
+        <div class="card error">
+          {{ error }}
+        </div>
+      {% endif %}
+
+      {% if user %}
+        {% if cn_scores %}
+        <div class="card">
+          <h2>コミュニティノート分析</h2>
+          <p class="meta">このユーザのコメントに付与されたコミュニティノート {{ cn_scores.note_count }} 件のスコア分析です。</p>
+
+          <div class="cn-layout">
+            <div>
+              <div class="cn-subheading">危険度スコア分布</div>
+              <div class="danger-chart">
+                <canvas id="dangerDistChart"></canvas>
+              </div>
+              <div class="danger-note meta">
+                危険度 = (被害可能性 + 誇張度 + 根拠不足 + 主観度) / 4 &nbsp; 平均: {{ cn_scores.avg_danger }}
+              </div>
+
+              {% if cn_status_dist %}
+              <div class="status-block">
+                <div class="cn-subheading">判定分布</div>
+                {% set status_labels = {"supported": "裏付けあり", "insufficient": "情報不足", "inconsistent": "矛盾あり", "not_applicable": "該当なし"} %}
+                {% set status_colors = {"supported": "#4caf50", "insufficient": "#ff9800", "inconsistent": "#f44336", "not_applicable": "#9e9e9e"} %}
+                {% for status_key in ["supported", "insufficient", "inconsistent", "not_applicable"] %}
+                  {% if cn_status_dist.get(status_key) %}
+                  <div class="status-item">
+                    <div class="status-dot" style="background:{{ status_colors[status_key] }};"></div>
+                    <span class="status-text">{{ status_labels[status_key] }}: {{ cn_status_dist[status_key] }} 件</span>
+                  </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+
+            <div class="radar-chart-wrap">
+              <canvas id="cnRadarChart"></canvas>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="charts-grid">
+          <div class="card">
+            <h2>書き込み時間分布 (24時間、日本時間 JST)</h2>
+            <div class="chart-box">
+              <canvas id="statsChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>曜日分布</h2>
+            <div class="chart-box">
+              <canvas id="weekdayChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>配信者ごとのアクティブ状況</h2>
+          <p class="meta">総コメント数 {{ owners_total_comments }} 件に対する配信者別の割合（上位50件）</p>
+          <p class="meta">活動率/非活動率は、対象配信の全時間を5分区間換算した比率です。</p>
+          <p>配信を五分区切りにして、{{ user.login }}がコメントをした区間は活動、いない場合は非活動として、その比率を配信者ごと表示しています</p>
+          <div class="table-wrap">
+            <table class="owners-table" id="ownersTable">
+              <thead>
+                <tr>
+                  <th class="sortable" data-sort-key="rank" data-default-dir="asc">#</th>
+                  <th class="sortable" data-sort-key="streamer" data-default-dir="asc">配信者</th>
+                  <th class="sortable" data-sort-key="count" data-default-dir="desc">コメント数</th>
+                  <th class="sortable" data-sort-key="ratio" data-default-dir="desc">全体との比率</th>
+                  <th class="sortable" data-sort-key="active_rate" data-default-dir="desc">活動率</th>
+                  <th class="sortable" data-sort-key="inactive_rate" data-default-dir="desc">非活動率</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for owner in owners_stats %}
+                <tr>
+                  <td>{{ owner.rank }}</td>
+                  <td>{{ owner.login }}{% if owner.display_name %}（{{ owner.display_name }}）{% endif %}</td>
+                  <td>{{ owner.count }}</td>
+                  <td>{{ "%.1f"|format(owner.ratio) }}%</td>
+                  <td>{% if owner.active_rate is not none %}{{ "%.1f"|format(owner.active_rate) }}%{% else %}-{% endif %}</td>
+                  <td>{% if owner.inactive_rate is not none %}{{ "%.1f"|format(owner.inactive_rate) }}%{% else %}-{% endif %}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {% if impact_stats %}
+        <div class="card">
+          <h2>コメント影響度分析</h2>
+          <p class="meta">
+            このユーザがコメントしている5分間と、していない5分間で、他のコメンターの活動がどう変わるかをチャンネル別に比較しています。
+            変化率がマイナスなら、このユーザの活動中に他のコメントが減少していることを示します。プラスなら逆に盛り上げていることを示します。
+            p値はMann-Whitney U検定による統計的有意性を示します（*** p&lt;0.001, ** p&lt;0.01, * p&lt;0.05）。
+          </p>
+          <div class="impact-chart-wrap">
+            <canvas id="impactChart"></canvas>
+          </div>
+          <div class="table-wrap">
+            <table class="stats-table">
+              <thead>
+                <tr>
+                  <th>配信者</th>
+                  <th>活動区間</th>
+                  <th>非活動区間</th>
+                  <th>他コメ(活動時)</th>
+                  <th>他コメ(非活動時)</th>
+                  <th>コメント変化率</th>
+                  <th>有意性</th>
+                  <th>人数変化率</th>
+                  <th>有意性</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% macro sig_cell(p_value) %}
+                  {% if p_value < 0.001 %}
+                    <span title="p={{ p_value }}" style="color:#e74c3c; font-weight:bold;">*** (p&lt;0.001)</span>
+                  {% elif p_value < 0.01 %}
+                    <span title="p={{ p_value }}" style="color:#e67e22; font-weight:bold;">** (p={{ p_value }})</span>
+                  {% elif p_value < 0.05 %}
+                    <span title="p={{ p_value }}" style="color:#f39c12;">* (p={{ p_value }})</span>
+                  {% else %}
+                    <span title="p={{ p_value }}" style="color:var(--meta-color);">n.s. (p={{ p_value }})</span>
+                  {% endif %}
+                {% endmacro %}
+                {% macro change_cell(val) %}
+                  <span style="font-weight:bold; {% if val < 0 %}color:#e74c3c{% elif val > 0 %}color:#2ecc71{% endif %}">{{ val }}%</span>
+                {% endmacro %}
+                {% for item in impact_stats %}
+                <tr>
+                  <td>{{ item.owner_display_name }}</td>
+                  <td>{{ item.active_buckets }}</td>
+                  <td>{{ item.inactive_buckets }}</td>
+                  <td>{{ item.avg_others_active }}</td>
+                  <td>{{ item.avg_others_inactive }}</td>
+                  <td>{{ change_cell(item.comment_change) }}</td>
+                  <td>{{ sig_cell(item.p_value) }}</td>
+                  <td>{{ change_cell(item.unique_change) }}</td>
+                  <td>{{ sig_cell(item.p_value_unique) }}</td>
+                </tr>
+                {% endfor %}
+                {% if impact_total %}
+                <tr class="total-row">
+                  <td>合計</td>
+                  <td>{{ impact_total.active_buckets }}</td>
+                  <td>{{ impact_total.inactive_buckets }}</td>
+                  <td>{{ impact_total.avg_others_active }}</td>
+                  <td>{{ impact_total.avg_others_inactive }}</td>
+                  <td>{{ change_cell(impact_total.comment_change) }}</td>
+                  <td>{{ sig_cell(impact_total.p_value) }}</td>
+                  <td>{{ change_cell(impact_total.unique_change) }}</td>
+                  <td>{{ sig_cell(impact_total.p_value_unique) }}</td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+      {% endif %}
+    </main>
+
+    {% if cn_scores %}
+    <script type="application/json" id="cn-scores-data">{{ cn_scores | tojson }}</script>
+    {% endif %}
+    <script type="application/json" id="stats-data">{{ stats | tojson }}</script>
+    <script type="application/json" id="weekday-stats-data">{{ weekday_stats | tojson }}</script>
+    <script type="application/json" id="impact-stats-data">{{ impact_stats | tojson }}</script>
+    <script>
+      const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const textColor = isDarkMode ? '#e0e0e0' : '#666';
+      const gridColor = isDarkMode ? '#444' : '#ddd';
+
+      // ---- コミュニティノート ----
+      const cnScoresEl = document.getElementById('cn-scores-data');
+      if (cnScoresEl) {
+        const cnScores = JSON.parse(cnScoresEl.textContent);
+
+        // 危険度分布ヒストグラム
+        const distLabels = ['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80-89', '90-100'];
+        const distColors = cnScores.danger_dist.map((_, i) => {
+          if (i < 3) return 'rgba(76,175,80,0.6)';   // 緑 (安全)
+          if (i < 6) return 'rgba(255,152,0,0.6)';    // オレンジ (やや注意)
+          return 'rgba(244,67,54,0.6)';                // 赤 (要注意)
+        });
+        const distBorders = cnScores.danger_dist.map((_, i) => {
+          if (i < 3) return '#4caf50';
+          if (i < 6) return '#ff9800';
+          return '#f44336';
+        });
+        new Chart(document.getElementById('dangerDistChart').getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: distLabels,
+            datasets: [{
+              label: 'コメント数',
+              data: cnScores.danger_dist,
+              backgroundColor: distColors,
+              borderColor: distBorders,
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { color: textColor, precision: 0 },
+                grid: { color: gridColor },
+                title: { display: true, text: '件数', color: textColor }
+              },
+              x: {
+                ticks: { color: textColor },
+                grid: { color: gridColor },
+                title: { display: true, text: '危険度', color: textColor }
+              }
+            },
+            plugins: {
+              legend: { display: false }
+            }
+          }
+        });
+
+        // レーダーチャート
+        const ctxRadar = document.getElementById('cnRadarChart').getContext('2d');
+        new Chart(ctxRadar, {
+          type: 'radar',
+          data: {
+            labels: ['検証可能性', '被害可能性', '誇張度', '根拠不足', '主観度'],
+            datasets: [{
+              label: '平均スコア',
+              data: [
+                cnScores.avg_verifiability,
+                cnScores.avg_harm_risk,
+                cnScores.avg_exaggeration,
+                cnScores.avg_evidence_gap,
+                cnScores.avg_subjectivity
+              ],
+              backgroundColor: 'rgba(255, 99, 132, 0.2)',
+              borderColor: 'rgba(255, 99, 132, 1)',
+              borderWidth: 2,
+              pointBackgroundColor: 'rgba(255, 99, 132, 1)',
+              pointBorderColor: '#fff',
+              pointRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              r: {
+                beginAtZero: true,
+                max: 100,
+                ticks: {
+                  stepSize: 20,
+                  color: textColor,
+                  backdropColor: 'transparent'
+                },
+                grid: { color: gridColor },
+                angleLines: { color: gridColor },
+                pointLabels: {
+                  color: textColor,
+                  font: { size: 13 }
+                }
+              }
+            },
+            plugins: {
+              legend: { display: false }
+            }
+          }
+        });
+      }
+
+      const stats = JSON.parse(document.getElementById('stats-data').textContent);
+      const ctx = document.getElementById('statsChart').getContext('2d');
+      const chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+          datasets: [{
+            label: 'コメント数',
+            data: stats,
+            backgroundColor: 'rgba(54, 162, 235, 0.4)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { color: textColor },
+              grid: { color: gridColor }
+            },
+            x: {
+              ticks: { color: textColor },
+              grid: { color: gridColor }
+            }
+          },
+          plugins: {
+            legend: { labels: { color: textColor } }
+          }
+        }
+      });
+
+      const weekdayStats = JSON.parse(document.getElementById('weekday-stats-data').textContent);
+      const ctxWeekday = document.getElementById('weekdayChart').getContext('2d');
+      const weekdayChart = new Chart(ctxWeekday, {
+        type: 'doughnut',
+        data: {
+          labels: ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'],
+          datasets: [{
+            label: 'コメント数',
+            data: weekdayStats,
+            backgroundColor: [
+              'rgba(255, 99, 132, 0.4)',
+              'rgba(54, 162, 235, 0.4)',
+              'rgba(255, 205, 86, 0.4)',
+              'rgba(75, 192, 192, 0.4)',
+              'rgba(153, 102, 255, 0.4)',
+              'rgba(255, 159, 64, 0.4)',
+              'rgba(199, 199, 199, 0.4)'
+            ],
+            borderColor: [
+              'rgba(255, 99, 132, 1)',
+              'rgba(54, 162, 235, 1)',
+              'rgba(255, 205, 86, 1)',
+              'rgba(75, 192, 192, 1)',
+              'rgba(153, 102, 255, 1)',
+              'rgba(255, 159, 64, 1)',
+              'rgba(199, 199, 199, 1)'
+            ],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { color: textColor }
+            },
+            title: {
+              display: true,
+              text: '曜日ごとのコメント数',
+              color: textColor
+            }
+          }
+        }
+      });
+
+      // ---- 配信者アクティブ状況テーブルのソート ----
+      const ownersTable = document.getElementById('ownersTable');
+      if (ownersTable) {
+        const ownersBody = ownersTable.tBodies[0];
+        const ownerHeaders = Array.from(ownersTable.querySelectorAll('th.sortable'));
+        let currentSortKey = null;
+        let currentSortDir = null;
+
+        const numFromCell = (row, cellIndex) => {
+          const raw = row.cells[cellIndex].textContent.replace(/[%\s,]/g, '');
+          const val = Number.parseFloat(raw);
+          return Number.isFinite(val) ? val : -1;
+        };
+
+        const getSortValue = (row, key) => {
+          if (key === 'rank') return numFromCell(row, 0);
+          if (key === 'streamer') return row.cells[1].textContent.trim().toLowerCase();
+          if (key === 'count') return numFromCell(row, 2);
+          if (key === 'ratio') return numFromCell(row, 3);
+          if (key === 'active_rate') return numFromCell(row, 4);
+          if (key === 'inactive_rate') return numFromCell(row, 5);
+          return numFromCell(row, 0);
+        };
+
+        const sortOwnersTable = (key, dir) => {
+          const rows = Array.from(ownersBody.rows);
+          rows.sort((a, b) => {
+            const av = getSortValue(a, key);
+            const bv = getSortValue(b, key);
+            let cmp = 0;
+
+            if (typeof av === 'string' && typeof bv === 'string') {
+              cmp = av.localeCompare(bv, 'ja');
+            } else {
+              cmp = av - bv;
+            }
+
+            // 同値の場合は順位で安定化
+            if (cmp === 0) {
+              const ar = numFromCell(a, 0);
+              const br = numFromCell(b, 0);
+              cmp = ar - br;
+            }
+            return dir === 'asc' ? cmp : -cmp;
+          });
+
+          rows.forEach((row) => ownersBody.appendChild(row));
+          ownerHeaders.forEach((header) => {
+            header.dataset.sortState = header.dataset.sortKey === key ? dir : '';
+          });
+        };
+
+        ownerHeaders.forEach((header) => {
+          header.addEventListener('click', () => {
+            const key = header.dataset.sortKey;
+            const defaultDir = header.dataset.defaultDir || 'asc';
+            let nextDir = defaultDir;
+
+            if (currentSortKey === key) {
+              nextDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+            }
+
+            currentSortKey = key;
+            currentSortDir = nextDir;
+            sortOwnersTable(key, nextDir);
+          });
+        });
+
+        // 初期表示はコメント数の降順に固定
+        currentSortKey = 'count';
+        currentSortDir = 'desc';
+        sortOwnersTable(currentSortKey, currentSortDir);
+      }
+
+      // ---- コメント影響度チャート ----
+      const impactStatsEl = document.getElementById('impact-stats-data');
+      if (impactStatsEl) {
+        const impactData = JSON.parse(impactStatsEl.textContent);
+        if (impactData && impactData.length > 0) {
+          const impactLabels = impactData.map(d => d.owner_display_name);
+          const activeValues = impactData.map(d => d.avg_others_active);
+          const inactiveValues = impactData.map(d => d.avg_others_inactive);
+
+          const ctxImpact = document.getElementById('impactChart').getContext('2d');
+          new Chart(ctxImpact, {
+            type: 'bar',
+            data: {
+              labels: impactLabels,
+              datasets: [
+                {
+                  label: '活動時の平均他コメント数(/5分)',
+                  data: activeValues,
+                  backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                  borderColor: 'rgba(54, 162, 235, 1)',
+                  borderWidth: 1
+                },
+                {
+                  label: '非活動時の平均他コメント数(/5分)',
+                  data: inactiveValues,
+                  backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                  borderColor: 'rgba(255, 99, 132, 1)',
+                  borderWidth: 1
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              indexAxis: impactData.length > 5 ? 'y' : 'x',
+              scales: {
+                x: {
+                  beginAtZero: true,
+                  ticks: { color: textColor },
+                  grid: { color: gridColor }
+                },
+                y: {
+                  ticks: { color: textColor },
+                  grid: { color: gridColor }
+                }
+              },
+              plugins: {
+                legend: { labels: { color: textColor } },
+                tooltip: {
+                  callbacks: {
+                    afterBody: function(context) {
+                      const idx = context[0].dataIndex;
+                      const item = impactData[idx];
+                      const sig = item.p_value < 0.001 ? '***' : item.p_value < 0.01 ? '**' : item.p_value < 0.05 ? '*' : 'n.s.';
+                      return 'コメント変化率: ' + item.comment_change + '% (' + sig + ', p=' + item.p_value + ')\n人数変化率: ' + item.unique_change + '% (p=' + item.p_value_unique + ')';
+                    }
+                  }
+                }
+              }
+            }
+          });
+        }
+      }
+    </script>
+  </body>
+</html>
