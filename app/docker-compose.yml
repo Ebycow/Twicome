@@ -1,7 +1,34 @@
 name: twicome
-version: '3.8'
 
 services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: "${COMPOSE_MYSQL_ROOT_PASSWORD:-rootpass}"
+      MYSQL_DATABASE: "${COMPOSE_MYSQL_DATABASE:-appdb}"
+      MYSQL_USER: "${COMPOSE_MYSQL_USER:-appuser}"
+      MYSQL_PASSWORD: "${COMPOSE_MYSQL_PASSWORD:-apppass}"
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql8_honban_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.migrate
+    environment:
+      DATABASE_URL: "${COMPOSE_DATABASE_URL:-mysql+pymysql://appuser:apppass@db:3306/appdb?charset=utf8mb4}"
+    depends_on:
+      db:
+        condition: service_healthy
+
   app:
     build: .
     ports:
@@ -9,18 +36,30 @@ services:
     env_file:
       - ../.env
     environment:
-      - DEFAULT_PLATFORM=twitch
-      - ROOT_PATH=/twicome
+      DEFAULT_PLATFORM: twitch
+      ROOT_PATH: /twicome
+      DATABASE_URL: "${COMPOSE_DATABASE_URL:-mysql+pymysql://appuser:apppass@db:3306/appdb?charset=utf8mb4}"
+      MYSQL_HOST: "${COMPOSE_MYSQL_HOST:-db}"
+      MYSQL_PORT: "${COMPOSE_MYSQL_PORT:-3306}"
+      MYSQL_USER: "${COMPOSE_MYSQL_USER:-appuser}"
+      MYSQL_PASSWORD: "${COMPOSE_MYSQL_PASSWORD:-apppass}"
+      MYSQL_DATABASE: "${COMPOSE_MYSQL_DATABASE:-appdb}"
     volumes:
       - ./:/app
       - ../data/honban/targetusers.csv:/host/targetusers.csv
       - ../faiss_config.json:/app/faiss_config.json:ro
       - ../data/honban/faiss_data:/app/faiss_data:ro
       - hf-cache:/root/.cache/huggingface
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     dns:
       - 1.1.1.1
       - 8.8.8.8
 
 volumes:
   hf-cache:
+  mysql8_honban_data:

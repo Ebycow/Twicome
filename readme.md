@@ -32,6 +32,7 @@ Twitch VOD コメントを収集し、検索・分析・可視化するための
 ## ディレクトリ概要
 
 - `app/`: Web アプリ本体（FastAPI, router, template）
+- `app/migrations/`: Alembic マイグレーション
 - `batch/scripts/`: バッチ本体
 - `batch/prompts/`: コミュニティノート生成プロンプト
 - `util/`: Twitch トークン更新、ユーザ ID 取得などの補助スクリプト
@@ -96,14 +97,15 @@ cp batch/prompts/community_note_system_prompt.txt.example batch/prompts/communit
 - `HOST_CHECK_ENABLED`
 - `APP_ENV`, `BATCH_DATA_DIR` などのバッチ入出力先
 
-### 4. MySQL スキーマ適用
+### 4. MySQL マイグレーション適用
 
-`dbschema.md` にある DDL を MySQL に適用してください。
+初期スキーマは Alembic で管理します。  
+（`dbschema.md` は参照用、実際の適用はマイグレーションを使用）
 
-- `users`
-- `vods`
-- `comments`
-- `community_notes`
+```bash
+cd app
+DATABASE_URL="mysql+pymysql://appuser:apppass@localhost:3306/appdb?charset=utf8mb4" ../.venv/bin/alembic upgrade head
+```
 
 ### 5. 監視対象ユーザ CSV
 
@@ -171,25 +173,45 @@ cd app
 
 ### Docker Compose 起動
 
-本番寄り設定:
+本番寄り設定（`db` + `migrate` + `app` を同時起動）:
 
 ```bash
 cd app
 docker compose up --build
 ```
 
-アクセス先: `http://localhost:8000/twicome`
+- `db`: `localhost:3306`
+- `app`: `http://localhost:8000/twicome`
+- `migrate`: 起動時に `alembic upgrade head` を実行（完了後に停止）
 
-開発設定:
+開発設定（`db` + `migrate` + `app` を同時起動）:
 
 ```bash
 cd app
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-アクセス先: `http://localhost:8011/`
+- `db`: `localhost:3307`
+- `app`: `http://localhost:8011/`
 
 `app/docker-compose*.yml` のボリュームは `../data/...` を参照するため、運用に合わせてパスを調整してください。
+
+外部 DB を使いたい場合は、`COMPOSE_DATABASE_URL` と `COMPOSE_MYSQL_*` を上書きしてください。
+
+例:
+
+```bash
+cd app
+COMPOSE_DATABASE_URL="mysql+pymysql://appuser:apppass@host.docker.internal:3306/appdb?charset=utf8mb4" docker compose up --build
+```
+
+## CI
+<!-- 
+`.github/workflows/ci.yml` で以下を自動実行します。
+
+1. MySQL 8 起動
+2. `alembic upgrade head`
+3. 必須テーブル（`users`, `vods`, `comments`, `community_notes`）の存在確認 -->
 
 ## Web 画面
 

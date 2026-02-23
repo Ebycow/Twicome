@@ -1,0 +1,58 @@
+# name: CI
+
+# on:
+#   pull_request:
+#   push:
+#     branches:
+#       - main
+
+# jobs:
+#   migration:
+#     name: Migration Check
+#     runs-on: ubuntu-latest
+
+#     services:
+#       mysql:
+#         image: mysql:8.0
+#         env:
+#           MYSQL_ROOT_PASSWORD: rootpass
+#           MYSQL_DATABASE: appdb_ci
+#           MYSQL_USER: appuser
+#           MYSQL_PASSWORD: apppass
+#         ports:
+#           - 3306:3306
+#         options: >-
+#           --health-cmd="mysqladmin ping -h 127.0.0.1 -uappuser -papppass --silent"
+#           --health-interval=10s
+#           --health-timeout=5s
+#           --health-retries=20
+
+#     env:
+#       DATABASE_URL: mysql+pymysql://appuser:apppass@127.0.0.1:3306/appdb_ci?charset=utf8mb4
+
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
+
+#       - name: Setup Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: "3.11"
+
+#       - name: Install migration dependencies
+#         run: pip install -r app/requirements-migrate.txt
+
+#       - name: Wait for MySQL
+#         run: |
+#           for i in $(seq 1 60); do
+#             python -c "import pymysql; pymysql.connect(host='127.0.0.1', port=3306, user='appuser', password='apppass', database='appdb_ci').close()" && exit 0
+#             sleep 2
+#           done
+#           echo "MySQL did not become ready in time" >&2
+#           exit 1
+
+#       - name: Run migrations
+#         run: alembic -c app/alembic.ini upgrade head
+
+#       - name: Verify schema
+#         run: python app/scripts/check_schema.py
