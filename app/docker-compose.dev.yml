@@ -60,6 +60,37 @@ services:
       - 1.1.1.1
       - 8.8.8.8
 
+  batch:
+    build:
+      context: .
+      dockerfile: Dockerfile.batch
+    env_file:
+      - ../.env.development
+    environment:
+      DATABASE_URL: "${COMPOSE_DATABASE_URL:-mysql+pymysql://appuser:apppass@db:3306/appdb_dev?charset=utf8mb4}"
+      MYSQL_HOST: "${COMPOSE_MYSQL_HOST:-db}"
+      MYSQL_PORT: "${COMPOSE_MYSQL_PORT:-3306}"
+      MYSQL_USER: "${COMPOSE_MYSQL_USER:-appuser}"
+      MYSQL_PASSWORD: "${COMPOSE_MYSQL_PASSWORD:-apppass}"
+      MYSQL_DATABASE: "${COMPOSE_MYSQL_DATABASE:-appdb_dev}"
+      PROJECT_ROOT: /app
+      APP_ENV: development
+    volumes:
+      - ../batch:/app/batch:ro
+      - ../library:/app/library:ro
+      - ../data/development:/app/data/development
+      - ../.env.development:/app/.env.development:ro
+      - ../faiss_config.dev.json:/app/faiss_config.dev.json:ro
+      - hf-cache:/root/.cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
 volumes:
   hf-cache:
   mysql8_dev_data:
