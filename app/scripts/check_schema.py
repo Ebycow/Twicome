@@ -23,6 +23,7 @@ def main() -> int:
     with engine.connect() as conn:
         tables = set(inspect(conn).get_table_names())
 
+    # テーブル一致の確認しかしていない
     missing = sorted(REQUIRED_TABLES - tables)
     if missing:
         print(f"Missing tables: {', '.join(missing)}", file=sys.stderr)

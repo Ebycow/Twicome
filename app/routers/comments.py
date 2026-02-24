@@ -17,7 +17,16 @@ router = APIRouter()
 def index(request: Request):
     quick_links_out = []
     with SessionLocal() as db:
-        users = db.execute(text("SELECT login FROM users WHERE platform = 'twitch' ORDER BY login")).mappings().all()
+        users = db.execute(
+            text(
+                """
+                SELECT login, display_name
+                FROM users
+                WHERE platform = 'twitch'
+                ORDER BY login
+                """
+            )
+        ).mappings().all()
         user_logins = [row["login"] for row in users]
         if DEFAULT_LOGIN and DEFAULT_LOGIN in user_logins:
             selected_login = DEFAULT_LOGIN

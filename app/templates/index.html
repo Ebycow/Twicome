@@ -107,10 +107,10 @@
         letter-spacing: 0.02em;
       }
 
-      .select-wrapper {
+      .search-wrapper {
         position: relative;
       }
-      .select-wrapper select {
+      .search-input {
         width: 100%;
         padding: 12px 16px;
         font-size: 1rem;
@@ -118,23 +118,48 @@
         border-radius: var(--radius-sm);
         background: var(--bg-tertiary);
         color: var(--text-primary);
-        appearance: none;
-        cursor: pointer;
         transition: border-color 0.2s;
       }
-      .select-wrapper select:focus {
+      .search-input:focus {
         outline: none;
         border-color: var(--accent);
       }
-      .select-wrapper::after {
-        content: '\25BC';
+      .search-results {
         position: absolute;
-        right: 14px;
-        top: 50%;
-        transform: translateY(-50%);
-        font-size: 0.7rem;
+        top: calc(100% + 6px);
+        left: 0;
+        right: 0;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        box-shadow: var(--shadow);
+        max-height: 260px;
+        overflow-y: auto;
+        z-index: 20;
+      }
+      .search-results[hidden] {
+        display: none;
+      }
+      .search-item {
+        display: block;
+        width: 100%;
+        border: none;
+        background: transparent;
+        color: var(--text-primary);
+        text-align: left;
+        padding: 10px 14px;
+        font-size: 0.92rem;
+        cursor: pointer;
+      }
+      .search-item:hover,
+      .search-item:focus {
+        background: var(--accent-light);
+        outline: none;
+      }
+      .search-empty {
+        padding: 10px 14px;
+        font-size: 0.82rem;
         color: var(--text-muted);
-        pointer-events: none;
       }
 
       /* ─── Buttons ─── */
@@ -163,6 +188,10 @@
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       }
       .btn:active { transform: translateY(0); }
+      .btn[aria-disabled="true"] {
+        opacity: 0.55;
+        pointer-events: none;
+      }
 
       .btn-primary {
         background: var(--gradient);
@@ -370,16 +399,20 @@
         <form method="post" action="{{ request.url_for('go') }}">
           <input type="hidden" name="platform" value="twitch">
 
-          <label class="form-label">Twitch ユーザを選択</label>
-          <div class="select-wrapper">
-            <select name="login" required>
-              {% for user in users %}
-                <option value="{{ user.login }}"
-                  {% if user.login == selected_login %}selected{% endif %}>
-                  {{ user.login }}
-                </option>
-              {% endfor %}
-            </select>
+          <label class="form-label" for="login-search">Twitch ユーザを検索（login / display_name）</label>
+          <div class="search-wrapper" id="login-search-wrapper">
+            <input
+              id="login-search"
+              class="search-input"
+              type="search"
+              name="login"
+              value="{{ selected_login }}"
+              placeholder="login または display_name を入力して候補から選択"
+              autocomplete="off"
+              spellcheck="false"
+              required
+            />
+            <div id="login-search-results" class="search-results" role="listbox" hidden></div>
           </div>
 
           <div class="actions">
@@ -443,9 +476,39 @@
     </div>
 
     <script>
-      const loginSelect = document.querySelector('select[name="login"]');
+      const loginInput = document.getElementById('login-search');
+      const loginSearchWrapper = document.getElementById('login-search-wrapper');
+      const loginSearchResults = document.getElementById('login-search-results');
       const statsLink = document.getElementById('stats-link');
       const quizLink = document.getElementById('quiz-link');
+      const form = loginInput.closest('form');
+      const allUsers = [
+        {% for user in users %}
+          {
+            login: {{ user.login | tojson }},
+            displayName: {{ (user.display_name or "") | tojson }},
+          },
+        {% endfor %}
+      ];
+      const indexedUsers = allUsers.map((user) => ({
+        login: user.login,
+        displayName: user.displayName,
+        loginLower: user.login.toLowerCase(),
+        displayLower: user.displayName.toLowerCase(),
+      }));
+      const loginMap = new Map(indexedUsers.map(user => [user.loginLower, user.login]));
+      const displayMap = new Map();
+      for (const user of indexedUsers) {
+        if (!user.displayLower) {
+          continue;
+        }
+        if (!displayMap.has(user.displayLower)) {
+          displayMap.set(user.displayLower, []);
+        }
+        displayMap.get(user.displayLower).push(user.login);
+      }
+
+      const maxCandidates = 25;
       const statsPathTemplate = {{ (request.url_for('user_stats_page', login='__LOGIN_PLACEHOLDER__') | string) | tojson }};
       const quizPathTemplate = {{ (request.url_for('quiz_page', login='__LOGIN_PLACEHOLDER__') | string) | tojson }};
 
@@ -453,11 +516,176 @@
         return template.replace('__LOGIN_PLACEHOLDER__', encodeURIComponent(login));
       }
 
-      loginSelect.addEventListener('change', function() {
-        const selectedLogin = this.value;
-        statsLink.href = `${pathForLogin(statsPathTemplate, selectedLogin)}?platform=twitch`;
-        quizLink.href = `${pathForLogin(quizPathTemplate, selectedLogin)}?platform=twitch`;
+      function setActionLinkState(enabled) {
+        const disabled = String(!enabled);
+        statsLink.setAttribute('aria-disabled', disabled);
+        quizLink.setAttribute('aria-disabled', disabled);
+      }
+
+      function setActionLinks(login) {
+        statsLink.href = `${pathForLogin(statsPathTemplate, login)}?platform=twitch`;
+        quizLink.href = `${pathForLogin(quizPathTemplate, login)}?platform=twitch`;
+      }
+
+      function formatCandidateLabel(user) {
+        if (!user.displayName || user.displayLower === user.loginLower) {
+          return user.login;
+        }
+        return `${user.displayName} (${user.login})`;
+      }
+
+      function resolveLogin(input) {
+        const normalized = input.trim().toLowerCase();
+        if (!normalized) {
+          return '';
+        }
+
+        const loginMatch = loginMap.get(normalized);
+        if (loginMatch) {
+          return loginMatch;
+        }
+
+        const displayMatches = displayMap.get(normalized) || [];
+        if (displayMatches.length === 1) {
+          return displayMatches[0];
+        }
+        return '';
+      }
+
+      function getCandidates(input) {
+        const q = input.trim().toLowerCase();
+        if (!q) {
+          return indexedUsers.slice(0, maxCandidates);
+        }
+
+        const loginStarts = [];
+        const displayStarts = [];
+        const loginContains = [];
+        const displayContains = [];
+
+        for (const user of indexedUsers) {
+          const matchedLogin = user.loginLower.includes(q);
+          const matchedDisplay = user.displayLower.includes(q);
+          if (!matchedLogin && !matchedDisplay) {
+            continue;
+          }
+
+          if (user.loginLower.startsWith(q)) {
+            loginStarts.push(user);
+          } else if (user.displayLower.startsWith(q)) {
+            displayStarts.push(user);
+          } else if (matchedLogin) {
+            loginContains.push(user);
+          } else {
+            displayContains.push(user);
+          }
+        }
+
+        const ordered = loginStarts.concat(displayStarts, loginContains, displayContains);
+        const deduped = [];
+        const seen = new Set();
+        for (const user of ordered) {
+          if (seen.has(user.login)) {
+            continue;
+          }
+          seen.add(user.login);
+          deduped.push(user);
+          if (deduped.length >= maxCandidates) {
+            break;
+          }
+        }
+        return deduped;
+      }
+
+      function hideCandidates() {
+        loginSearchResults.hidden = true;
+      }
+
+      function selectLogin(login) {
+        loginInput.value = login;
+        loginInput.setCustomValidity('');
+        setActionLinks(login);
+        setActionLinkState(true);
+        hideCandidates();
+      }
+
+      function renderCandidates(input) {
+        const candidates = getCandidates(input);
+        loginSearchResults.innerHTML = '';
+
+        if (!candidates.length) {
+          loginSearchResults.innerHTML = '<div class="search-empty">該当するユーザが見つかりません</div>';
+          loginSearchResults.hidden = false;
+          return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        for (const user of candidates) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'search-item';
+          btn.setAttribute('role', 'option');
+          btn.textContent = formatCandidateLabel(user);
+          btn.addEventListener('pointerdown', (event) => {
+            event.preventDefault();
+          });
+          btn.addEventListener('click', () => {
+            selectLogin(user.login);
+            loginInput.focus();
+          });
+          fragment.appendChild(btn);
+        }
+
+        loginSearchResults.appendChild(fragment);
+        loginSearchResults.hidden = false;
+      }
+
+      function syncActionLinksFromInput() {
+        const resolved = resolveLogin(loginInput.value);
+        if (resolved) {
+          setActionLinks(resolved);
+          setActionLinkState(true);
+        } else {
+          setActionLinkState(false);
+        }
+      }
+
+      loginInput.addEventListener('focus', function() {
+        renderCandidates(this.value);
       });
+
+      loginInput.addEventListener('input', function() {
+        this.setCustomValidity('');
+        renderCandidates(this.value);
+        syncActionLinksFromInput();
+      });
+
+      loginInput.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape') {
+          hideCandidates();
+        }
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!loginSearchWrapper.contains(event.target)) {
+          hideCandidates();
+        }
+      });
+
+      form.addEventListener('submit', (event) => {
+        const resolved = resolveLogin(loginInput.value);
+        if (resolved) {
+          loginInput.value = resolved;
+          return;
+        }
+        event.preventDefault();
+        renderCandidates(loginInput.value);
+        loginInput.setCustomValidity('候補からTwitchユーザを選択してください');
+        loginInput.reportValidity();
+        loginInput.focus();
+      });
+
+      syncActionLinksFromInput();
     </script>
   </body>
 </html>
