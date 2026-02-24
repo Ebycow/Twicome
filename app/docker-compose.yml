@@ -45,7 +45,7 @@ services:
       MYSQL_PASSWORD: "${COMPOSE_MYSQL_PASSWORD:-apppass}"
       MYSQL_DATABASE: "${COMPOSE_MYSQL_DATABASE:-appdb}"
     volumes:
-      - ./:/app
+      # - ./:/app
       - ../data/honban/targetusers.csv:/host/targetusers.csv
       - ../faiss_config.json:/app/faiss_config.json:ro
       - ../data/honban/faiss_data:/app/faiss_data:ro
