@@ -1,5 +1,5 @@
 {
-  "indexed_users": ["userid"],
+  "indexed_users": [""],
   "embedding_model": "hotchpotch/static-embedding-japanese",
   "batch_size": 512,
   "faiss_data_dir": "data/default/faiss_data",
