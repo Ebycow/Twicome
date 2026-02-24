@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -10,16 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # バッチスクリプトの Python 依存パッケージをインストール
-# batch_requirements.txt 相当 + faiss/embedding 系
-RUN pip install --no-cache-dir \
-    requests==2.31.0 \
-    pandas==2.1.4 \
-    python-dateutil==2.8.2 \
-    mysql-connector-python==8.1.0 \
-    python-dotenv==1.0.0 \
-    sentence-transformers \
-    faiss-cpu \
-    numpy
+# --mount=type=cache でビルド間の pip ダウンロードキャッシュを再利用（sentence-transformers/torch 等の重いパッケージ対策）
+COPY batch_requirements.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r batch_requirements.txt
 
 # 埋め込みモデルを事前ダウンロード（起動時のDL待ちを回避）
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('hotchpotch/static-embedding-japanese', device='cpu')"
@@ -28,6 +23,6 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 COPY batch-entrypoint.sh /usr/local/bin/run_batch
 RUN sed -i 's/\r$//' /usr/local/bin/run_batch && chmod +x /usr/local/bin/run_batch
 
-# 起動直後に1回実行し、以降は4時間ごとに繰り返す
+# 起動直後に1回実行し、以降は1時間ごとに繰り返す
 # （supercronic を使わず bash ループで管理）
 CMD ["/bin/bash", "-c", "while true; do /usr/local/bin/run_batch; sleep 3600; done"]
