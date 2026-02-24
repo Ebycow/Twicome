@@ -41,7 +41,7 @@ if not faiss_data_dir.is_absolute():
     faiss_data_dir = PROJECT_ROOT / faiss_data_dir
 FAISS_DATA_DIR = str(faiss_data_dir)
 
-MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
+MYSQL_HOST = os.getenv("MYSQL_HOST", "db")
 MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
 MYSQL_USER = os.getenv("MYSQL_USER", "appuser")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")

@@ -21,7 +21,7 @@ if not ENV_PATH.is_absolute():
     ENV_PATH = PROJECT_ROOT / ENV_PATH
 load_dotenv(str(ENV_PATH))
 
-MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
+MYSQL_HOST = os.getenv("MYSQL_HOST", "db")
 MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
 MYSQL_USER = os.getenv("MYSQL_USER", "appuser")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")

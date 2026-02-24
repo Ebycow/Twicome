@@ -97,6 +97,8 @@ cp batch/prompts/community_note_system_prompt.txt.example batch/prompts/communit
 - `HOST_CHECK_ENABLED`
 - `APP_ENV`, `BATCH_DATA_DIR` などのバッチ入出力先
 
+Docker Compose で動かす場合、DB 接続先はコンテナ名 `db:3306` を使います（ホストへの DB ポート公開は不要）。
+
 ### 4. MySQL マイグレーション適用
 
 初期スキーマは Alembic で管理します。  
@@ -104,7 +106,7 @@ cp batch/prompts/community_note_system_prompt.txt.example batch/prompts/communit
 
 ```bash
 cd app
-DATABASE_URL="mysql+pymysql://appuser:apppass@localhost:3306/appdb?charset=utf8mb4" ../.venv/bin/alembic upgrade head
+docker compose run --rm migrate
 ```
 
 ### 5. 監視対象ユーザ CSV
@@ -173,28 +175,36 @@ cd app
 
 ### Docker Compose 起動
 
-本番寄り設定（`db` + `migrate` + `app` を同時起動）:
+本番寄り設定（`db` + `migrate` + `app` + `batch` を同時起動）:
 
 ```bash
 cd app
 docker compose up --build
 ```
 
-- `db`: `localhost:3306`
+- `db`: ホストへは公開しない（`app`/`batch`/`migrate` から `db:3306` で接続）
 - `app`: `http://localhost:8000/twicome`
+- `batch`: 起動直後に1回実行、その後4時間ごとに定期実行
 - `migrate`: 起動時に `alembic upgrade head` を実行（完了後に停止）
 
-開発設定（`db` + `migrate` + `app` を同時起動）:
+開発設定（`db` + `migrate` + `app` + `batch` を同時起動）:
 
 ```bash
 cd app
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-- `db`: `localhost:3307`
+- `db`: ホストへは公開しない（`app`/`batch`/`migrate` から `db:3306` で接続）
 - `app`: `http://localhost:8011/`
 
 `app/docker-compose*.yml` のボリュームは `../data/...` を参照するため、運用に合わせてパスを調整してください。
+
+ホストから DB に直接入りたい場合は、ポート公開ではなく `docker compose exec` を使ってください。
+
+```bash
+cd app
+docker compose exec db mysql -uappuser -p appdb
+```
 
 外部 DB を使いたい場合は、`COMPOSE_DATABASE_URL` と `COMPOSE_MYSQL_*` を上書きしてください。
 

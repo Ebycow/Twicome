@@ -8,8 +8,9 @@ services:
       MYSQL_DATABASE: "${COMPOSE_MYSQL_DATABASE:-appdb}"
       MYSQL_USER: "${COMPOSE_MYSQL_USER:-appuser}"
       MYSQL_PASSWORD: "${COMPOSE_MYSQL_PASSWORD:-apppass}"
-    ports:
-      - "3306:3306"
+    # DB はホストへ公開せず、同一 Compose ネットワーク内から参照する
+    expose:
+      - "3306"
     volumes:
       - mysql8_honban_data:/var/lib/mysql
     healthcheck:
@@ -18,6 +19,8 @@ services:
       timeout: 5s
       retries: 20
       start_period: 20s
+    networks:
+      - backend
 
   migrate:
     build:
@@ -28,6 +31,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - backend
 
   app:
     build: .
@@ -56,6 +61,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    networks:
+      - backend
     dns:
       - 1.1.1.1
       - 8.8.8.8
@@ -87,6 +94,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    networks:
+      - backend
     dns:
       - 1.1.1.1
       - 8.8.8.8
@@ -94,3 +103,7 @@ services:
 volumes:
   hf-cache:
   mysql8_honban_data:
+
+networks:
+  backend:
+    driver: bridge
