@@ -40,7 +40,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install migration dependencies
-        run: pip install -r app/requirements-migrate.txt
+        run: pip install -r migrate/requirements.txt
 
       - name: Wait for MySQL
         run: |
@@ -52,7 +52,7 @@ jobs:
           exit 1
 
       - name: Run migrations
-        run: alembic -c app/alembic.ini upgrade head
+        run: alembic -c migrate/alembic.ini upgrade head
 
       - name: Verify schema
-        run: python app/scripts/check_schema.py
+        run: python migrate/check_schema.py

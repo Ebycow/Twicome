@@ -32,7 +32,7 @@ Twitch VOD コメントを収集し、検索・分析・可視化するための
 ## ディレクトリ概要
 
 - `app/`: Web アプリ本体（FastAPI, router, template）
-- `app/migrations/`: Alembic マイグレーション
+- `migrate/`: Alembic マイグレーション
 - `batch/scripts/`: バッチ本体
 - `batch/prompts/`: コミュニティノート生成プロンプト
 - `util/`: Twitch トークン更新、ユーザ ID 取得などの補助スクリプト
@@ -63,7 +63,7 @@ chmod +x library/TwitchDownloaderCLI
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
-pip install -r app/requirements.txt -r batch_requirements.txt
+pip install -r app/requirements.txt -r batch/requirements.txt
 ```
 
 ### 3. 設定ファイル
@@ -105,7 +105,6 @@ Docker Compose で動かす場合、DB 接続先はコンテナ名 `db:3306` を
 （`dbschema.md` は参照用、実際の適用はマイグレーションを使用）
 
 ```bash
-cd app
 docker compose run --rm migrate
 ```
 
@@ -178,7 +177,6 @@ cd app
 本番寄り設定（`db` + `migrate` + `app` + `batch` を同時起動）:
 
 ```bash
-cd app
 docker compose up --build
 ```
 
@@ -190,7 +188,6 @@ docker compose up --build
 開発設定（`db` + `migrate` + `app` + `batch` を同時起動）:
 
 ```bash
-cd app
 docker compose -f docker-compose.dev.yml up --build
 ```
 
@@ -199,12 +196,11 @@ docker compose -f docker-compose.dev.yml up --build
 
 `batch` / `library` のコード変更を反映するには `batch` イメージ再ビルド（`docker compose build batch`）が必要です。
 
-`app/docker-compose*.yml` のボリュームは `../data/...` を参照するため、運用に合わせてパスを調整してください。
+`docker-compose*.yml` のボリュームは `./data/...` を参照するため、運用に合わせてパスを調整してください。
 
 ホストから DB に直接入りたい場合は、ポート公開ではなく `docker compose exec` を使ってください。
 
 ```bash
-cd app
 docker compose exec db mysql -uappuser -p appdb
 ```
 
@@ -213,7 +209,6 @@ docker compose exec db mysql -uappuser -p appdb
 例:
 
 ```bash
-cd app
 COMPOSE_DATABASE_URL="mysql+pymysql://appuser:apppass@host.docker.internal:3306/appdb?charset=utf8mb4" docker compose up --build
 ```
 
@@ -272,7 +267,7 @@ COMPOSE_DATABASE_URL="mysql+pymysql://appuser:apppass@host.docker.internal:3306/
 
 - TwitchDownloaderCLI の著作権表示: `library/COPYRIGHT.txt`
 - TwitchDownloaderCLI のサードパーティライセンス: `library/THIRD-PARTY-LICENSES.txt`
-- Python 依存関係: `app/requirements.txt`, `batch_requirements.txt`
+- Python 依存関係: `app/requirements.txt`, `batch/requirements.txt`
 
 ## 開発メモ
 

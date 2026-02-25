@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # バッチスクリプトの Python 依存パッケージをインストール
-COPY app/batch_requirements.txt ./batch_requirements.txt
+COPY batch/requirements.txt ./batch_requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r batch_requirements.txt
 
@@ -18,7 +18,7 @@ COPY batch/ ./batch/
 COPY library/ ./library/
 
 # Docker 専用バッチ実行スクリプト（CRLF→LF 変換も行う）
-COPY app/batch-entrypoint.sh /usr/local/bin/run_batch
+COPY batch/entrypoint.sh /usr/local/bin/run_batch
 RUN sed -i 's/\r$//' /usr/local/bin/run_batch && chmod +x /usr/local/bin/run_batch
 
 # 起動直後に1回実行し、以降は4時間ごとに繰り返す
