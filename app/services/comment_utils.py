@@ -3,7 +3,7 @@ import json
 import re
 from datetime import datetime, timedelta
 from typing import Optional
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 
 import pytz
 
@@ -67,6 +67,18 @@ def split_filter_terms(raw: Optional[str]):
 
 
 EMOTE_URL_TEMPLATE = "https://static-cdn.jtvnw.net/emoticons/v2/{emote_id}/default/dark/{scale}"
+EMOTE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_]+$")
+
+
+def normalize_emote_id(raw_emote_id) -> Optional[str]:
+    if raw_emote_id is None:
+        return None
+    emote_id = str(raw_emote_id).strip()
+    if not emote_id:
+        return None
+    if not EMOTE_ID_PATTERN.fullmatch(emote_id):
+        return None
+    return emote_id
 
 
 def parse_raw_comment(raw_json):
@@ -96,12 +108,13 @@ def render_comment_body_html(raw_json, fallback_body):
             continue
         text = frag.get("text") or ""
         emoticon = frag.get("emoticon") or {}
-        emote_id = emoticon.get("emoticon_id")
+        emote_id = normalize_emote_id(emoticon.get("emoticon_id"))
         if emote_id:
             escaped = html.escape(text)
-            url1 = EMOTE_URL_TEMPLATE.format(emote_id=emote_id, scale="1.0")
-            url2 = EMOTE_URL_TEMPLATE.format(emote_id=emote_id, scale="2.0")
-            url3 = EMOTE_URL_TEMPLATE.format(emote_id=emote_id, scale="3.0")
+            emote_id_url = quote(emote_id, safe="")
+            url1 = html.escape(EMOTE_URL_TEMPLATE.format(emote_id=emote_id_url, scale="1.0"), quote=True)
+            url2 = html.escape(EMOTE_URL_TEMPLATE.format(emote_id=emote_id_url, scale="2.0"), quote=True)
+            url3 = html.escape(EMOTE_URL_TEMPLATE.format(emote_id=emote_id_url, scale="3.0"), quote=True)
             parts.append(
                 f'<img class="emote" src="{url1}" srcset="{url2} 2x, {url3} 3x" alt="{escaped}" title="{escaped}" loading="lazy" decoding="async">'
             )
