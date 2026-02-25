@@ -48,9 +48,33 @@ MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "appdb")
 # チャンクサイズ: 大規模データを分割して送信
 CHUNK_SIZE = 1000
 
+# faiss-api と共有しているデータディレクトリ（meta.json の読み取りに使う）
+_batch_data_dir = os.getenv("BATCH_DATA_DIR", "")
+_app_env = os.getenv("APP_ENV", "development")
+FAISS_DATA_DIR = (
+    Path(_batch_data_dir) / "faiss_data"
+    if _batch_data_dir
+    else PROJECT_ROOT / "data" / _app_env / "faiss_data"
+)
+
+
+def get_indexed_ids(login: str) -> set:
+    """ディスク上の meta.json から既インデックス済みコメントIDのセットを返す"""
+    meta_path = FAISS_DATA_DIR / f"{login}.meta.json"
+    if not meta_path.exists():
+        return set()
+    try:
+        with open(meta_path) as f:
+            return set(json.load(f).get("comment_ids", []))
+    except Exception as e:
+        print(f"  meta.json 読み取りエラー: {e} → 全件送信にフォールバック")
+        return set()
+
 
 def update_index_for_user(conn, login: str):
     """1ユーザのインデックスを faiss-api 経由で更新する"""
+    indexed_ids = get_indexed_ids(login)
+
     cur = conn.cursor(dictionary=True)
     cur.execute(
         """
@@ -70,11 +94,18 @@ def update_index_for_user(conn, login: str):
         print(f"  コメントなし、スキップ")
         return
 
-    print(f"  DB上の全コメント: {len(rows)} 件 → faiss-api へ送信中...")
+    new_rows = [r for r in rows if r["comment_id"] not in indexed_ids]
+    print(f"  DB: {len(rows)} 件 / 既インデックス済み: {len(indexed_ids)} 件 / 新規: {len(new_rows)} 件")
+
+    if not new_rows:
+        print(f"  新規なし、スキップ")
+        return
+
+    print(f"  新規 {len(new_rows)} 件 → faiss-api へ送信中...")
 
     total_added = 0
-    for i in range(0, len(rows), CHUNK_SIZE):
-        chunk = rows[i:i + CHUNK_SIZE]
+    for i in range(0, len(new_rows), CHUNK_SIZE):
+        chunk = new_rows[i:i + CHUNK_SIZE]
         chunk_ids = [r["comment_id"] for r in chunk]
         chunk_texts = [r["body"] for r in chunk]
 
@@ -90,9 +121,8 @@ def update_index_for_user(conn, login: str):
         total_added += result["added"]
 
         chunk_num = i // CHUNK_SIZE + 1
-        total_chunks = (len(rows) + CHUNK_SIZE - 1) // CHUNK_SIZE
-        if result["added"] > 0:
-            print(f"  チャンク {chunk_num}/{total_chunks}: +{result['added']} 件 (合計 {result['total']} 件)")
+        total_chunks = (len(new_rows) + CHUNK_SIZE - 1) // CHUNK_SIZE
+        print(f"  チャンク {chunk_num}/{total_chunks}: +{result['added']} 件 (合計 {result['total']} 件)")
 
     print(f"  完了: 新規追加 {total_added} 件")
 

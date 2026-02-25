@@ -104,8 +104,8 @@ class UserIndex:
             if self.index is None and self.is_available():
                 self.load()
 
-    def update(self, new_ids: List[int], new_embeddings: np.ndarray):
-        """新規埋め込みをインデックスに追加し、重心を再計算してアトミック保存する"""
+    def update(self, new_ids: List[str], new_embeddings: np.ndarray) -> int:
+        """新規埋め込みをインデックスに追加し、重心を再計算してアトミック保存する。追加件数を返す"""
         with self.lock:
             dim = new_embeddings.shape[1]
 
@@ -115,6 +115,14 @@ class UserIndex:
                 else:
                     self.index = faiss.IndexFlatIP(dim)
                     self.comment_ids = []
+
+            # ロック内で再チェック（並行リクエスト対策）
+            existing_ids = set(self.comment_ids)
+            mask = [i for i, cid in enumerate(new_ids) if cid not in existing_ids]
+            if not mask:
+                return 0
+            new_ids = [new_ids[i] for i in mask]
+            new_embeddings = new_embeddings[mask]
 
             self.index.add(new_embeddings)
             self.comment_ids.extend(new_ids)
@@ -147,7 +155,9 @@ class UserIndex:
             os.replace(tmp_index, str(self.index_path))
             os.replace(tmp_meta, str(self.meta_path))
 
-    def search(self, query_embedding: np.ndarray, top_k: int) -> List[Tuple[int, float]]:
+            return len(new_ids)
+
+    def search(self, query_embedding: np.ndarray, top_k: int) -> List[Tuple[str, float]]:
         """類似検索。[(comment_id, score), ...] を返す"""
         k = min(top_k, self.index.ntotal)
         if query_embedding.ndim == 1:
@@ -159,7 +169,7 @@ class UserIndex:
                 results.append((self.comment_ids[idx], float(score)))
         return results
 
-    def search_centroid(self, position: float, top_k: int) -> List[Tuple[int, float]]:
+    def search_centroid(self, position: float, top_k: int) -> List[Tuple[str, float]]:
         """重心距離検索。position=0.0→典型的, 1.0→珍しい"""
         if self.centroid_similarities is None:
             return []
@@ -269,35 +279,19 @@ def update_index(login: str, req: IndexUpdateRequest):
 
     ui = get_user_index(login)
 
-    # 既存IDのセット（in-memoryから取得）
-    with ui.lock:
-        existing_ids = set(ui.comment_ids)
-
-    new_pairs = [
-        (cid, text)
-        for cid, text in zip(req.comment_ids, req.texts)
-        if cid not in existing_ids
-    ]
-
-    if not new_pairs:
-        return {"status": "ok", "added": 0, "total": len(ui.comment_ids), "login": login}
-
-    new_ids = [p[0] for p in new_pairs]
-    new_texts = [p[1] for p in new_pairs]
-
     model = get_model()
     embeddings = model.encode(
-        new_texts,
+        req.texts,
         batch_size=BATCH_SIZE,
         show_progress_bar=False,
         normalize_embeddings=True,
     )
     embeddings = np.array(embeddings, dtype=np.float32)
 
-    ui.update(new_ids, embeddings)
-    print(f"[faiss-api] インデックス更新 [{login}]: +{len(new_ids)} 件, 合計 {len(ui.comment_ids)} 件")
+    added = ui.update(req.comment_ids, embeddings)
+    print(f"[faiss-api] インデックス更新 [{login}]: +{added} 件, 合計 {len(ui.comment_ids)} 件")
 
-    return {"status": "ok", "added": len(new_ids), "total": len(ui.comment_ids), "login": login}
+    return {"status": "ok", "added": added, "total": len(ui.comment_ids), "login": login}
 
 
 @app.post("/search/similar/{login}")
