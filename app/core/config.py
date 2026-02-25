@@ -41,3 +41,8 @@ QUICK_LINK_LOGINS = _parse_csv_env("QUICK_LINK_LOGINS")
 
 # .env 例: HOST_CHECK_ENABLED=true
 HOST_CHECK_ENABLED = _parse_bool_env("HOST_CHECK_ENABLED", True)
+
+# .env 例: FAISS_API_URL=http://faiss-api:8100
+# 未設定の場合は埋め込み検索機能が無効化される
+FAISS_API_URL: str = os.getenv("FAISS_API_URL", "").strip().rstrip("/")
+FAISS_ENABLED: bool = bool(FAISS_API_URL)
