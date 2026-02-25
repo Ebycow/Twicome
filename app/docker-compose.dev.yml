@@ -40,11 +40,10 @@ services:
       context: ../faiss-api
       dockerfile: Dockerfile
     environment:
-      DATA_DIR: /app/data
-      FAISS_CONFIG_PATH: /app/faiss_config.json
+      DATA_DIR: /app/data/faiss_data
+      FAISS_CONFIG_PATH: /app/data/faiss_config.json
     volumes:
-      - ../data/development/faiss_data:/app/data
-      - ../faiss_config.dev.json:/app/faiss_config.json:ro
+      - ../data/development:/app/data
       - hf-cache:/root/.cache/huggingface
     expose:
       - "8100"

@@ -25,7 +25,7 @@ CONFIG_PATH = Path(os.getenv("FAISS_CONFIG_PATH", "/app/faiss_config.json"))
 
 # faiss_config.json から感情アンカーを読み込む
 _emotion_anchors_config: Dict[str, str] = {}
-if CONFIG_PATH.exists():
+if CONFIG_PATH.is_file():
     with open(CONFIG_PATH) as _f:
         _cfg = json.load(_f)
         _emotion_anchors_config = _cfg.get("emotion_anchors", {})
