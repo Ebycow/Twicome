@@ -7,9 +7,6 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
-# 埋め込みモデルを事前ダウンロード（起動時のDL待ちを回避）
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('hotchpotch/static-embedding-japanese', device='cpu')"
-
 COPY main.py .
 COPY app_factory.py .
 COPY faiss_search.py .

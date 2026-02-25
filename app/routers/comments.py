@@ -6,7 +6,7 @@ from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import text
 
-from core.config import DEFAULT_LOGIN, DEFAULT_PLATFORM, QUICK_LINK_LOGINS
+from core.config import DEFAULT_LOGIN, DEFAULT_PLATFORM, FAISS_ENABLED, QUICK_LINK_LOGINS
 from core.db import SessionLocal
 from core.templates import templates
 from services.comment_utils import _decorate_comment, _render_comment_body_html, _split_filter_terms
@@ -184,6 +184,7 @@ def user_comments_page(
                         "sort": sort,
                     },
                     "root_path": request.scope.get("root_path", ""),
+                    "faiss_enabled": FAISS_ENABLED,
                 },
                 status_code=404,
             )
@@ -383,6 +384,7 @@ def user_comments_page(
                 },
                 "root_path": request.scope.get("root_path", ""),
                 "page_title": page_title,
+                "faiss_enabled": FAISS_ENABLED,
             },
         )
 

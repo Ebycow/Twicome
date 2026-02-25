@@ -4,12 +4,20 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from core.config import DEFAULT_PLATFORM
+from core.config import DEFAULT_PLATFORM, FAISS_ENABLED
 from core.db import SessionLocal
-from faiss_search import centroid_search, emotion_search, get_emotion_axes, get_user_index, similar_search
+from faiss_search import centroid_search, emotion_search, get_emotion_axes, is_index_available, similar_search
 from services.comment_utils import _decorate_comment
 
 router = APIRouter()
+
+
+def _faiss_unavailable_response():
+    return JSONResponse(
+        {"error": "faiss_not_enabled", "message": "埋め込み検索は現在無効です"},
+        status_code=503,
+    )
+
 
 @router.get("/api/u/{login}/similar")
 def similar_search_api(
@@ -19,6 +27,9 @@ def similar_search_api(
     top_k: int = Query(20, ge=1, le=100),
 ):
     """意味的に類似したコメントを検索する"""
+    if not FAISS_ENABLED:
+        return _faiss_unavailable_response()
+
     with SessionLocal() as db:
         user_row = db.execute(
             text("""
@@ -32,14 +43,19 @@ def similar_search_api(
         if not user_row:
             return JSONResponse({"error": "user_not_found"}, status_code=404)
 
-    user_index = get_user_index(login)
-    if not user_index.is_available():
+    if not is_index_available(login):
         return JSONResponse(
             {"error": "similar_search_not_available", "message": "このユーザの類似検索インデックスはまだ作成されていません"},
             status_code=404,
         )
 
     results = similar_search(login, q, top_k)
+
+    if results is None:
+        return JSONResponse(
+            {"error": "similar_search_not_available", "message": "このユーザの類似検索インデックスはまだ作成されていません"},
+            status_code=404,
+        )
 
     if not results:
         return {"user": dict(user_row), "query": q, "total": 0, "items": []}
@@ -164,6 +180,9 @@ def centroid_search_api(
     top_k: int = Query(50, ge=1, le=100),
 ):
     """重心距離でコメントを検索。position: 0.0=典型的, 1.0=珍しい"""
+    if not FAISS_ENABLED:
+        return _faiss_unavailable_response()
+
     with SessionLocal() as db:
         user_row = db.execute(
             text("SELECT user_id, login, display_name FROM users WHERE platform = :platform AND login = :login LIMIT 1"),
@@ -172,11 +191,13 @@ def centroid_search_api(
         if not user_row:
             return JSONResponse({"error": "user_not_found"}, status_code=404)
 
-    user_index = get_user_index(login)
-    if not user_index.is_available():
+    if not is_index_available(login):
         return JSONResponse({"error": "index_not_available"}, status_code=404)
 
     results = centroid_search(login, position, top_k)
+    if results is None:
+        return JSONResponse({"error": "index_not_available"}, status_code=404)
+
     comments = _fetch_comment_details(results)
     return {"user": dict(user_row), "position": position, "total": len(comments), "items": comments}
 
@@ -194,6 +215,9 @@ def emotion_search_api(
     cheer: float = Query(0.0, ge=0.0, le=1.0),
 ):
     """感情スライダーでコメントを検索"""
+    if not FAISS_ENABLED:
+        return _faiss_unavailable_response()
+
     with SessionLocal() as db:
         user_row = db.execute(
             text("SELECT user_id, login, display_name FROM users WHERE platform = :platform AND login = :login LIMIT 1"),
@@ -202,8 +226,7 @@ def emotion_search_api(
         if not user_row:
             return JSONResponse({"error": "user_not_found"}, status_code=404)
 
-    user_index = get_user_index(login)
-    if not user_index.is_available():
+    if not is_index_available(login):
         return JSONResponse({"error": "index_not_available"}, status_code=404)
 
     weights = {"joy": joy, "surprise": surprise, "admiration": admiration, "anger": anger, "sadness": sadness, "cheer": cheer}
@@ -211,6 +234,9 @@ def emotion_search_api(
         return {"user": dict(user_row), "weights": weights, "total": 0, "items": []}
 
     results = emotion_search(login, weights, top_k)
+    if results is None:
+        return JSONResponse({"error": "index_not_available"}, status_code=404)
+
     comments = _fetch_comment_details(results)
     return {"user": dict(user_row), "weights": weights, "total": len(comments), "items": comments}
 
@@ -219,5 +245,3 @@ def emotion_search_api(
 def emotion_axes_api():
     """利用可能な感情軸の一覧"""
     return {"axes": get_emotion_axes()}
-
-

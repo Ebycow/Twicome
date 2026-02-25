@@ -55,8 +55,12 @@ run_required "get_vod_list_batch.py"
 run_required "batch_download_comments.py"
 run_required "insertdb.py"
 
-if [ "${SKIP_FAISS:-0}" != "1" ]; then
+if [ "${SKIP_FAISS:-0}" != "1" ] && [ -n "${FAISS_API_URL:-}" ]; then
     run_optional "build_faiss_index.py"
+elif [ "${SKIP_FAISS:-0}" = "1" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] build_faiss_index.py をスキップ (SKIP_FAISS=1)" | tee -a "${LOG_FILE}"
+else
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] build_faiss_index.py をスキップ (FAISS_API_URL 未設定)" | tee -a "${LOG_FILE}"
 fi
 
 run_optional "generate_community_notes.py"

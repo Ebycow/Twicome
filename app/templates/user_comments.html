@@ -236,6 +236,7 @@
         </div>
       </form>
 
+      {% if faiss_enabled %}
       <div class="card" style="margin-top:12px;">
         <div class="section-title">類似検索（意味的に近いコメントを検索）</div>
         <div class="filters">
@@ -311,6 +312,7 @@
           <div id="emotion-status" class="meta" style="margin-top:8px;"></div>
         </details>
       </div>
+      {% endif %}
 
       <div id="load-prev" style="display:none; text-align:center; margin:16px;">
         <button id="load-prev-btn" style="width: 100%; max-width: 400px; padding: 12px; font-size: 16px;">前の投稿も読む</button>
@@ -728,6 +730,7 @@
         // Allow normal form submission to reload the page
       });
 
+      {% if faiss_enabled %}
       // -----------------------
       // 類似検索
       // -----------------------
@@ -1015,6 +1018,7 @@
       });
 
       emotionClearBtn.addEventListener('click', exitSpecialMode);
+      {% endif %}
     </script>
   </body>
 </html>

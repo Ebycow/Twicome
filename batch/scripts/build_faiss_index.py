@@ -1,24 +1,22 @@
 """
-FAISS インデックス構築スクリプト
+FAISS インデックス構築スクリプト (faiss-api クライアント版)
 
 faiss_config.json に記載されたユーザのコメントを MySQL から取得し、
-hotchpotch/static-embedding-japanese で埋め込みを生成して FAISS に保存する。
-増分更新対応: 既にインデックス済みのコメントはスキップする。
+faiss-api へ送信することでインデックスを更新する。
+埋め込み生成・FAISS操作はすべて faiss-api 側で行う。
 
 Usage:
     python build_faiss_index.py                    # 全ユーザ
-    python build_faiss_index.py username   # 特定ユーザのみ
+    python build_faiss_index.py username           # 特定ユーザのみ
 """
 
 import json
 import os
 import sys
 from pathlib import Path
-from datetime import datetime, timezone
-import numpy as np
-import faiss
+
 import mysql.connector
-from sentence_transformers import SentenceTransformer
+import requests
 from dotenv import load_dotenv
 
 # -----------------------------------------------
@@ -29,123 +27,104 @@ ENV_PATH = Path(os.getenv("ENV_FILE", str(PROJECT_ROOT / ".env")))
 if not ENV_PATH.is_absolute():
     ENV_PATH = PROJECT_ROOT / ENV_PATH
 load_dotenv(str(ENV_PATH))
-CONFIG_PATH = Path(os.getenv("FAISS_CONFIG_PATH", PROJECT_ROOT / "faiss_config.json"))
 
+FAISS_API_URL = os.getenv("FAISS_API_URL", "").strip().rstrip("/")
+if not FAISS_API_URL:
+    print("FAISS_API_URL が設定されていません。FAISSインデックス構築をスキップします。")
+    sys.exit(0)
+
+CONFIG_PATH = Path(os.getenv("FAISS_CONFIG_PATH", PROJECT_ROOT / "faiss_config.json"))
 with open(CONFIG_PATH) as f:
     config = json.load(f)
-
-MODEL_NAME = config["embedding_model"]
-BATCH_SIZE = config["batch_size"]
-faiss_data_dir = Path(config["faiss_data_dir"])
-if not faiss_data_dir.is_absolute():
-    faiss_data_dir = PROJECT_ROOT / faiss_data_dir
-FAISS_DATA_DIR = str(faiss_data_dir)
 
 MYSQL_HOST = os.getenv("MYSQL_HOST", "db")
 MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
 MYSQL_USER = os.getenv("MYSQL_USER", "appuser")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
 if not MYSQL_PASSWORD:
-    raise RuntimeError("MYSQL_PASSWORD is not set. Set MYSQL_PASSWORD in .env or environment variables.")
+    raise RuntimeError("MYSQL_PASSWORD が設定されていません。")
 MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "appdb")
 
+# チャンクサイズ: 大規模データを分割して送信
+CHUNK_SIZE = 1000
 
-def build_index_for_user(model, conn, login: str):
-    """1ユーザ分のインデックスを構築（増分更新対応）"""
-    os.makedirs(FAISS_DATA_DIR, exist_ok=True)
+# faiss-api と共有しているデータディレクトリ（meta.json の読み取りに使う）
+_batch_data_dir = os.getenv("BATCH_DATA_DIR", "")
+_app_env = os.getenv("APP_ENV", "development")
+FAISS_DATA_DIR = (
+    Path(_batch_data_dir) / "faiss_data"
+    if _batch_data_dir
+    else PROJECT_ROOT / "data" / _app_env / "faiss_data"
+)
 
-    index_path = os.path.join(FAISS_DATA_DIR, f"{login}.faiss")
-    meta_path = os.path.join(FAISS_DATA_DIR, f"{login}.meta.json")
 
-    # 既存メタデータの読込
-    existing_ids = set()
-    existing_id_list = []
-    if os.path.exists(meta_path):
+def get_indexed_ids(login: str) -> set:
+    """ディスク上の meta.json から既インデックス済みコメントIDのセットを返す"""
+    meta_path = FAISS_DATA_DIR / f"{login}.meta.json"
+    if not meta_path.exists():
+        return set()
+    try:
         with open(meta_path) as f:
-            meta = json.load(f)
-        existing_id_list = meta["comment_ids"]
-        existing_ids = set(existing_id_list)
-        print(f"  既存インデックス: {len(existing_id_list)} 件")
+            return set(json.load(f).get("comment_ids", []))
+    except Exception as e:
+        print(f"  meta.json 読み取りエラー: {e} → 全件送信にフォールバック")
+        return set()
 
-    # MySQL からユーザの全コメントを取得
+
+def update_index_for_user(conn, login: str):
+    """1ユーザのインデックスを faiss-api 経由で更新する"""
+    indexed_ids = get_indexed_ids(login)
+
     cur = conn.cursor(dictionary=True)
-    cur.execute("""
+    cur.execute(
+        """
         SELECT c.comment_id, c.body
         FROM comments c
         JOIN users u ON u.user_id = c.commenter_user_id
         WHERE u.login = %s AND u.platform = 'twitch'
+          AND c.body IS NOT NULL AND c.body != ''
         ORDER BY c.comment_id
-    """, (login,))
+        """,
+        (login,),
+    )
     rows = cur.fetchall()
     cur.close()
 
-    print(f"  DB上の全コメント: {len(rows)} 件")
-
-    # 新規コメントのみ抽出
-    new_rows = [r for r in rows if r["comment_id"] not in existing_ids]
-
-    if not new_rows:
-        print(f"  新規コメントなし、スキップ")
+    if not rows:
+        print(f"  コメントなし、スキップ")
         return
 
-    print(f"  新規コメント: {len(new_rows)} 件 → 埋め込み生成中...")
+    new_rows = [r for r in rows if r["comment_id"] not in indexed_ids]
+    print(f"  DB: {len(rows)} 件 / 既インデックス済み: {len(indexed_ids)} 件 / 新規: {len(new_rows)} 件")
 
-    # 埋め込み生成
-    bodies = [r["body"] for r in new_rows]
-    new_ids = [r["comment_id"] for r in new_rows]
-    embeddings = model.encode(
-        bodies,
-        batch_size=BATCH_SIZE,
-        show_progress_bar=True,
-        normalize_embeddings=True,
-    )
-    embeddings = np.array(embeddings, dtype=np.float32)
-    dim = embeddings.shape[1]
+    if not new_rows:
+        print(f"  新規なし、スキップ")
+        return
 
-    # FAISS インデックスの読込 or 新規作成
-    if os.path.exists(index_path):
-        index = faiss.read_index(index_path)
-    else:
-        index = faiss.IndexFlatIP(dim)
+    print(f"  新規 {len(new_rows)} 件 → faiss-api へ送信中...")
 
-    # ベクトル追加
-    index.add(embeddings)
+    total_added = 0
+    for i in range(0, len(new_rows), CHUNK_SIZE):
+        chunk = new_rows[i:i + CHUNK_SIZE]
+        chunk_ids = [r["comment_id"] for r in chunk]
+        chunk_texts = [r["body"] for r in chunk]
 
-    # メタデータ更新
-    updated_id_list = existing_id_list + new_ids
+        resp = requests.post(
+            f"{FAISS_API_URL}/index/update/{login}",
+            json={"comment_ids": chunk_ids, "texts": chunk_texts},
+            timeout=180,
+        )
+        if not resp.ok:
+            print(f"  faiss-api エラー [{resp.status_code}]: {resp.text}")
+        resp.raise_for_status()
+        result = resp.json()
+        total_added += result["added"]
 
-    # 重心（centroid）と各コメントのコサイン類似度を計算
-    print(f"  重心を計算中...")
-    n_total = index.ntotal
-    all_vectors = np.zeros((n_total, dim), dtype=np.float32)
-    for i in range(n_total):
-        all_vectors[i] = index.reconstruct(i)
-    centroid = np.mean(all_vectors, axis=0)
-    centroid_norm = np.linalg.norm(centroid)
-    if centroid_norm > 0:
-        centroid = centroid / centroid_norm
-    # コサイン類似度 = dot(comment, centroid)（両方正規化済み）
-    centroid_similarities = (all_vectors @ centroid).tolist()
+        chunk_num = i // CHUNK_SIZE + 1
+        total_chunks = (len(new_rows) + CHUNK_SIZE - 1) // CHUNK_SIZE
+        print(f"  チャンク {chunk_num}/{total_chunks}: +{result['added']} 件 (合計 {result['total']} 件)")
 
-    meta = {
-        "comment_ids": updated_id_list,
-        "last_indexed_at": datetime.now(timezone.utc).isoformat(),
-        "total_comments": len(updated_id_list),
-        "embedding_dim": dim,
-        "centroid": centroid.tolist(),
-        "centroid_similarities": centroid_similarities,
-    }
-
-    # アトミック書き込み（.tmp に書いてから rename）
-    tmp_index = index_path + ".tmp"
-    tmp_meta = meta_path + ".tmp"
-    faiss.write_index(index, tmp_index)
-    with open(tmp_meta, "w") as f:
-        json.dump(meta, f, ensure_ascii=False)
-    os.replace(tmp_index, index_path)
-    os.replace(tmp_meta, meta_path)
-
-    print(f"  完了: 合計 {len(updated_id_list)} 件 (新規 {len(new_ids)} 件)")
+    print(f"  完了: 新規追加 {total_added} 件")
 
 
 def main():
@@ -156,10 +135,16 @@ def main():
         target_users = config["indexed_users"]
 
     print(f"対象ユーザ: {target_users}")
-    print(f"埋め込みモデル: {MODEL_NAME}")
+    print(f"faiss-api URL: {FAISS_API_URL}")
 
-    print("モデル読み込み中...")
-    model = SentenceTransformer(MODEL_NAME, device="cpu")
+    # faiss-api の死活確認
+    try:
+        health = requests.get(f"{FAISS_API_URL}/health", timeout=10)
+        health.raise_for_status()
+        print(f"faiss-api 接続確認: {health.json()}")
+    except Exception as e:
+        print(f"faiss-api に接続できません: {e}")
+        sys.exit(1)
 
     print("MySQL 接続中...")
     conn = mysql.connector.connect(
@@ -173,7 +158,7 @@ def main():
     try:
         for login in target_users:
             print(f"\n[{login}]")
-            build_index_for_user(model, conn, login)
+            update_index_for_user(conn, login)
     finally:
         conn.close()
 

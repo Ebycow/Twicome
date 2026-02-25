@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 
-from core.config import ROOT_PATH
+from core.config import FAISS_API_URL, ROOT_PATH
 from core.middleware import CSRFProtectionMiddleware, HostCheckMiddleware, SecurityHeadersMiddleware
-from faiss_search import get_model
+from faiss_search import ping_faiss_api
 from routers import ALL_ROUTERS
 
 app = FastAPI(root_path=ROOT_PATH)
@@ -12,14 +12,17 @@ app.add_middleware(HostCheckMiddleware)
 
 
 @app.on_event("startup")
-def preload_embedding_model():
-    """埋め込みモデルを起動時にプリロード（初回検索のレイテンシ回避）"""
-    try:
-        get_model()
-        print("[faiss] Embedding model loaded successfully")
-    except Exception as e:
-        print(f"[faiss] Warning: Failed to load embedding model: {e}")
-        print("[faiss] Similar search will be unavailable")
+def check_faiss_api():
+    """起動時に faiss-api への接続確認"""
+    if FAISS_API_URL:
+        try:
+            ping_faiss_api()
+            print(f"[faiss] faiss-api 接続確認完了: {FAISS_API_URL}")
+        except Exception as e:
+            print(f"[faiss] Warning: {e}")
+            print("[faiss] 埋め込み検索機能は利用できません")
+    else:
+        print("[faiss] FAISS_API_URL 未設定 - 埋め込み検索機能は無効")
 
 
 for router in ALL_ROUTERS:
