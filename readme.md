@@ -221,7 +221,7 @@ COMPOSE_DATABASE_URL="mysql+pymysql://appuser:apppass@host.docker.internal:3306/
 
 1. MySQL 8 起動
 2. `alembic upgrade head`
-3. 必須テーブル（`users`, `vods`, `comments`, `community_notes`）の存在確認 -->
+3. 必須テーブル（`users`, `vods`, `comments`, `community_notes`, `vod_ingest_markers`）の存在確認 -->
 
 ## Web 画面
 

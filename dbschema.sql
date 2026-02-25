@@ -99,4 +99,18 @@ CREATE TABLE `vods` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
+CREATE TABLE `vod_ingest_markers` (
+  `vod_id` bigint unsigned NOT NULL,
+  `source_filename` varchar(255) NOT NULL,
+  `source_file_sha256` char(64) NOT NULL,
+  `source_file_size` bigint unsigned NOT NULL,
+  `comments_ingested` int unsigned NOT NULL,
+  `completed_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (`vod_id`),
+  KEY `idx_vod_ingest_markers_sha` (`source_file_sha256`),
+  CONSTRAINT `fk_vod_ingest_markers_vod` FOREIGN KEY (`vod_id`) REFERENCES `vods` (`vod_id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
 -- 2026-02-18 10:14:43 UTC

@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -7,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple, List
 
 import mysql.connector
+from mysql.connector import errorcode
 from mysql.connector.cursor import MySQLCursor
 from dateutil import parser as dtparser
 from dotenv import load_dotenv
@@ -165,10 +167,72 @@ def insert_comment(cur: MySQLCursor, vod_id: int, c: Dict[str, Any], platform: s
 
 def vod_already_ingested(cur: MySQLCursor, vod_id: int) -> bool:
     """
-    vods に行が存在する=取り込み済み、としてスキップする😺🦐
+    既存データ判定（主に完了マーカー未導入時のログ補助用）。
     """
     cur.execute("SELECT 1 FROM vods WHERE vod_id=%s LIMIT 1", (vod_id,))
     return cur.fetchone() is not None
+
+
+def compute_sha256(path: str) -> str:
+    hasher = hashlib.sha256()
+    with open(path, "rb") as f:
+        while True:
+            chunk = f.read(1024 * 1024)
+            if not chunk:
+                break
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def get_vod_ingest_marker(cur: MySQLCursor, vod_id: int) -> Optional[Tuple[str, int]]:
+    try:
+        cur.execute(
+            """
+            SELECT source_file_sha256, comments_ingested
+            FROM vod_ingest_markers
+            WHERE vod_id=%s
+            LIMIT 1
+            """,
+            (vod_id,),
+        )
+    except mysql.connector.Error as e:
+        if e.errno == errorcode.ER_NO_SUCH_TABLE:
+            raise RuntimeError(
+                "Table `vod_ingest_markers` does not exist. "
+                "Run `alembic -c app/alembic.ini upgrade head` first."
+            ) from e
+        raise
+
+    row = cur.fetchone()
+    if row is None:
+        return None
+    return row[0], int(row[1])
+
+
+def upsert_vod_ingest_marker(
+    cur: MySQLCursor,
+    vod_id: int,
+    source_filename: str,
+    source_file_sha256: str,
+    source_file_size: int,
+    comments_ingested: int,
+) -> None:
+    cur.execute(
+        """
+        INSERT INTO vod_ingest_markers
+          (vod_id, source_filename, source_file_sha256, source_file_size, comments_ingested, completed_at, updated_at)
+        VALUES
+          (%s, %s, %s, %s, %s, NOW(6), NOW(6))
+        ON DUPLICATE KEY UPDATE
+          source_filename = VALUES(source_filename),
+          source_file_sha256 = VALUES(source_file_sha256),
+          source_file_size = VALUES(source_file_size),
+          comments_ingested = VALUES(comments_ingested),
+          completed_at = NOW(6),
+          updated_at = NOW(6)
+        """,
+        (vod_id, source_filename, source_file_sha256, source_file_size, comments_ingested),
+    )
 
 
 def list_comment_json_files(dir_path: str) -> List[Tuple[str, str, int]]:
@@ -278,12 +342,28 @@ def ingest_directory(dir_path: str, skip_existing_vods: bool = True) -> None:
         for fullpath, filename, vod_id in files:
             cur = conn.cursor()
             try:
-                # 取り込み済みスキップ 😺🦐
-                if skip_existing_vods and vod_already_ingested(cur, vod_id):
+                source_file_sha256 = compute_sha256(fullpath)
+                source_file_size = os.path.getsize(fullpath)
+
+                marker = get_vod_ingest_marker(cur, vod_id)
+                if skip_existing_vods and marker and marker[0] == source_file_sha256:
                     skipped += 1
                     continue
 
+                if skip_existing_vods and marker and marker[0] != source_file_sha256:
+                    print(f"♻️ {filename}: source_file_sha256 changed, re-ingesting")
+                elif skip_existing_vods and marker is None and vod_already_ingested(cur, vod_id):
+                    print(f"ℹ️ {filename}: VOD exists without completion marker, re-ingesting once")
+
                 vod_done, ccount = ingest_one_file(conn, fullpath, filename, vod_id)
+                upsert_vod_ingest_marker(
+                    cur=cur,
+                    vod_id=vod_done,
+                    source_filename=filename,
+                    source_file_sha256=source_file_sha256,
+                    source_file_size=source_file_size,
+                    comments_ingested=ccount,
+                )
                 conn.commit()
 
                 ingested += 1

@@ -10,6 +10,7 @@ REQUIRED_TABLES = {
     "vods",
     "comments",
     "community_notes",
+    "vod_ingest_markers",
 }
 
 
