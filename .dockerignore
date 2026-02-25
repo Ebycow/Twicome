@@ -1,0 +1,15 @@
+.git
+.github
+.venv
+.claude
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+.env
+.env.*
+!.env.example
+
+data/
+app/faiss_data/

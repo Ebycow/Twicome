@@ -197,6 +197,8 @@ docker compose -f docker-compose.dev.yml up --build
 - `db`: ホストへは公開しない（`app`/`batch`/`migrate` から `db:3306` で接続）
 - `app`: `http://localhost:8011/`
 
+`batch` / `library` のコード変更を反映するには `batch` イメージ再ビルド（`docker compose build batch`）が必要です。
+
 `app/docker-compose*.yml` のボリュームは `../data/...` を参照するため、運用に合わせてパスを調整してください。
 
 ホストから DB に直接入りたい場合は、ポート公開ではなく `docker compose exec` を使ってください。

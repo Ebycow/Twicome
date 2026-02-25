@@ -69,8 +69,8 @@ services:
 
   batch:
     build:
-      context: .
-      dockerfile: Dockerfile.batch
+      context: ..
+      dockerfile: app/Dockerfile.batch
     env_file:
       - ../.env
     environment:
@@ -83,8 +83,6 @@ services:
       PROJECT_ROOT: /app
       APP_ENV: honban
     volumes:
-      - ../batch:/app/batch:ro
-      - ../library:/app/library:ro
       - ../data/honban:/app/data/honban
       - ../.env:/app/.env:ro
       - ../faiss_config.json:/app/faiss_config.json:ro

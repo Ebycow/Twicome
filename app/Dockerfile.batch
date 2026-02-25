@@ -12,15 +12,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # バッチスクリプトの Python 依存パッケージをインストール
 # --mount=type=cache でビルド間の pip ダウンロードキャッシュを再利用（sentence-transformers/torch 等の重いパッケージ対策）
-COPY batch_requirements.txt .
+COPY app/batch_requirements.txt ./batch_requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r batch_requirements.txt
 
 # 埋め込みモデルを事前ダウンロード（起動時のDL待ちを回避）
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('hotchpotch/static-embedding-japanese', device='cpu')"
 
+# batch処理のコードと依存バイナリをイメージに同梱
+COPY batch/ ./batch/
+COPY library/ ./library/
+
 # Docker 専用バッチ実行スクリプト（CRLF→LF 変換も行う）
-COPY batch-entrypoint.sh /usr/local/bin/run_batch
+COPY app/batch-entrypoint.sh /usr/local/bin/run_batch
 RUN sed -i 's/\r$//' /usr/local/bin/run_batch && chmod +x /usr/local/bin/run_batch
 
 # 起動直後に1回実行し、以降は4時間ごとに繰り返す
