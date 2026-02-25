@@ -75,7 +75,7 @@ services:
       FAISS_API_URL: "http://faiss-api:8100"
     volumes:
       - ./:/app
-      - ../data/development/targetusers.csv:/host/targetusers.csv
+      - ../data/development:/host
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     depends_on:
       db:
@@ -104,10 +104,10 @@ services:
       PROJECT_ROOT: /app
       APP_ENV: development
       FAISS_API_URL: "http://faiss-api:8100"
+      FAISS_CONFIG_PATH: /app/data/development/faiss_config.json
     volumes:
       - ../data/development:/app/data/development
       - ../.env.development:/app/.env.development:ro
-      - ../faiss_config.dev.json:/app/faiss_config.dev.json:ro
     depends_on:
       db:
         condition: service_healthy

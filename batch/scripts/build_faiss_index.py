@@ -34,6 +34,10 @@ if not FAISS_API_URL:
     sys.exit(0)
 
 CONFIG_PATH = Path(os.getenv("FAISS_CONFIG_PATH", PROJECT_ROOT / "faiss_config.json"))
+if not CONFIG_PATH.is_file():
+    print(f"FAISS設定ファイルが見つかりません: {CONFIG_PATH}")
+    print("FAISSインデックス構築をスキップします。")
+    sys.exit(0)
 with open(CONFIG_PATH) as f:
     config = json.load(f)
 

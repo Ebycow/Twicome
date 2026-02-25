@@ -65,7 +65,7 @@ services:
       - ../.env
     environment:
       DEFAULT_PLATFORM: twitch
-      ROOT_PATH: /twicome
+      # ROOT_PATH: /
       DATABASE_URL: "${COMPOSE_DATABASE_URL:-mysql+pymysql://appuser:apppass@db:3306/appdb?charset=utf8mb4}"
       MYSQL_HOST: "${COMPOSE_MYSQL_HOST:-db}"
       MYSQL_PORT: "${COMPOSE_MYSQL_PORT:-3306}"
@@ -75,7 +75,7 @@ services:
       FAISS_API_URL: "http://faiss-api:8100"
     volumes:
       # - ./:/app
-      - ../data/honban/targetusers.csv:/host/targetusers.csv
+      - ../data/honban:/host # 主にtargetusers.csvのため
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
       db:
@@ -104,10 +104,10 @@ services:
       PROJECT_ROOT: /app
       APP_ENV: honban
       FAISS_API_URL: "http://faiss-api:8100"
+      FAISS_CONFIG_PATH: /app/data/honban/faiss_config.json
     volumes:
       - ../data/honban:/app/data/honban
       - ../.env:/app/.env:ro
-      - ../faiss_config.json:/app/faiss_config.json:ro
     depends_on:
       db:
         condition: service_healthy

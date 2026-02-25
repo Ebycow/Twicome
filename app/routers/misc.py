@@ -44,8 +44,11 @@ def add_user(request: Request, username: str = Form(...)):
         return RedirectResponse(url=str(request.url_for("add_user_page")) + f"?error=ユーザ {username} が見つかりませんでした", status_code=303)
 
     try:
-        # CSV を読み込み
-        df = pd.read_csv("/host/targetusers.csv")
+        # CSV を読み込み (存在しなければ空のDataFrameを作成)
+        try:
+            df = pd.read_csv("/host/targetusers.csv")
+        except (FileNotFoundError, pd.errors.EmptyDataError):
+            df = pd.DataFrame(columns=["name", "id"])
         # すでに存在するかチェック
         if username in df["name"].values:
             return RedirectResponse(url=str(request.url_for("add_user_page")) + f"?error=ユーザ {username} はすでに登録されています", status_code=303)
