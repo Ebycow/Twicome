@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
 from core.config import FAISS_API_URL, ROOT_PATH
 from core.middleware import CSRFProtectionMiddleware, HostCheckMiddleware, SecurityHeadersMiddleware
@@ -9,6 +10,11 @@ app = FastAPI(root_path=ROOT_PATH)
 app.add_middleware(CSRFProtectionMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(HostCheckMiddleware)
+
+
+@app.get("/health")
+def health():
+    return JSONResponse({"status": "ok"})
 
 
 @app.on_event("startup")
