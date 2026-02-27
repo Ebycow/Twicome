@@ -33,6 +33,8 @@ CREATE TABLE `comments` (
   KEY `idx_comments_user_created` (`commenter_user_id`,`comment_created_at_utc`),
   KEY `idx_comments_vod_offset_user` (`vod_id`,`offset_seconds`,`commenter_user_id`),
   KEY `idx_comments_score` (((`twicome_likes_count` + `twicome_dislikes_count`))),
+  KEY `idx_comments_commenter_login_at` (`commenter_login_snapshot`,`comment_created_at_utc`),
+  KEY `idx_comments_commenter_login_vod` (`commenter_login_snapshot`,`vod_id`),
   CONSTRAINT `fk_comments_commenter` FOREIGN KEY (`commenter_user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_comments_vod` FOREIGN KEY (`vod_id`) REFERENCES `vods` (`vod_id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

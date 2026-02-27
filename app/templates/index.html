@@ -371,6 +371,94 @@
         color: var(--accent);
       }
 
+      /* ─── Filter Bar ─── */
+      .filter-bar {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+      }
+      .filter-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        flex: 1;
+        min-width: 140px;
+      }
+      .filter-item > label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        letter-spacing: 0.02em;
+      }
+      .filter-select {
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        border: 2px solid var(--border);
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        font-size: 0.88rem;
+        cursor: pointer;
+        transition: border-color 0.2s;
+      }
+      .filter-select:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      /* ─── Search Item (avatar + meta) ─── */
+      .search-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .search-item-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        object-fit: cover;
+        flex-shrink: 0;
+        background: var(--accent-light);
+        color: var(--accent);
+        font-size: 0.75rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .search-item-avatar img {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        object-fit: cover;
+        display: block;
+      }
+      .search-item-body {
+        flex: 1;
+        min-width: 0;
+      }
+      .search-item-name {
+        font-size: 0.92rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .search-item-meta {
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        margin-top: 1px;
+      }
+      .search-item-count {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--accent);
+        background: var(--accent-light);
+        border-radius: 999px;
+        padding: 2px 8px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
       /* ─── Responsive ─── */
       @media (max-width: 600px) {
         .hero { padding: 36px 16px 32px; }
@@ -398,6 +486,29 @@
       <div class="main-card">
         <form method="post" action="{{ request.url_for('go') }}">
           <input type="hidden" name="platform" value="twitch">
+
+          {% if streamers %}
+          <div class="filter-bar">
+            <div class="filter-item">
+              <label for="streamer-filter">配信者で絞り込み</label>
+              <select id="streamer-filter" class="filter-select">
+                <option value="">すべての配信者</option>
+                {% for s in streamers %}
+                <option value="{{ s.login }}">{{ s.display_name or s.login }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="filter-item">
+              <label for="sort-select">並び順</label>
+              <select id="sort-select" class="filter-select">
+                <option value="login">アルファベット順</option>
+                <option value="count_desc">コメント数が多い順</option>
+                <option value="count_asc">コメント数が少ない順</option>
+                <option value="recent">最近活動した順</option>
+              </select>
+            </div>
+          </div>
+          {% endif %}
 
           <label class="form-label" for="login-search">Twitch ユーザを検索（login / display_name）</label>
           <div class="search-wrapper" id="login-search-wrapper">
@@ -481,36 +592,42 @@
       const loginSearchResults = document.getElementById('login-search-results');
       const statsLink = document.getElementById('stats-link');
       const quizLink = document.getElementById('quiz-link');
+      const streamerFilter = document.getElementById('streamer-filter');
+      const sortSelect = document.getElementById('sort-select');
       const form = loginInput.closest('form');
+
       const allUsers = [
         {% for user in users %}
           {
             login: {{ user.login | tojson }},
             displayName: {{ (user.display_name or "") | tojson }},
+            profileImageUrl: {{ (user.profile_image_url or "") | tojson }},
+            commentCount: {{ user.comment_count }},
+            lastCommentAt: {{ (user.last_comment_at.isoformat() if user.last_comment_at else None) | tojson }},
           },
         {% endfor %}
       ];
+
       const indexedUsers = allUsers.map((user) => ({
-        login: user.login,
-        displayName: user.displayName,
+        ...user,
         loginLower: user.login.toLowerCase(),
         displayLower: user.displayName.toLowerCase(),
       }));
       const loginMap = new Map(indexedUsers.map(user => [user.loginLower, user.login]));
       const displayMap = new Map();
       for (const user of indexedUsers) {
-        if (!user.displayLower) {
-          continue;
-        }
-        if (!displayMap.has(user.displayLower)) {
-          displayMap.set(user.displayLower, []);
-        }
+        if (!user.displayLower) continue;
+        if (!displayMap.has(user.displayLower)) displayMap.set(user.displayLower, []);
         displayMap.get(user.displayLower).push(user.login);
       }
 
       const maxCandidates = 25;
       const statsPathTemplate = {{ (request.url_for('user_stats_page', login='__LOGIN_PLACEHOLDER__') | string) | tojson }};
       const quizPathTemplate = {{ (request.url_for('quiz_page', login='__LOGIN_PLACEHOLDER__') | string) | tojson }};
+
+      let currentSort = 'login';
+      // null = フィルターなし, Set = 絞り込み済み, 'loading' = 取得中
+      let streamerFilterSet = null;
 
       function pathForLogin(template, login) {
         return template.replace('__LOGIN_PLACEHOLDER__', encodeURIComponent(login));
@@ -527,6 +644,20 @@
         quizLink.href = `${pathForLogin(quizPathTemplate, login)}?platform=twitch`;
       }
 
+      function formatRelativeTime(isoStr) {
+        if (!isoStr) return null;
+        const diff = Date.now() - new Date(isoStr).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 60) return `${Math.max(1, mins)}分前`;
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return `${hours}時間前`;
+        const days = Math.floor(hours / 24);
+        if (days < 30) return `${days}日前`;
+        const months = Math.floor(days / 30);
+        if (months < 12) return `${months}ヶ月前`;
+        return `${Math.floor(months / 12)}年前`;
+      }
+
       function formatCandidateLabel(user) {
         if (!user.displayName || user.displayLower === user.loginLower) {
           return user.login;
@@ -536,26 +667,45 @@
 
       function resolveLogin(input) {
         const normalized = input.trim().toLowerCase();
-        if (!normalized) {
-          return '';
-        }
-
+        if (!normalized) return '';
         const loginMatch = loginMap.get(normalized);
-        if (loginMatch) {
-          return loginMatch;
-        }
-
+        if (loginMatch) return loginMatch;
         const displayMatches = displayMap.get(normalized) || [];
-        if (displayMatches.length === 1) {
-          return displayMatches[0];
-        }
+        if (displayMatches.length === 1) return displayMatches[0];
         return '';
+      }
+
+      function applyStreamerFilter(users) {
+        if (streamerFilterSet === null) return users;
+        if (streamerFilterSet === 'loading') return [];
+        return users.filter(u => streamerFilterSet.has(u.login));
+      }
+
+      function applySort(users) {
+        const sorted = [...users];
+        if (currentSort === 'count_desc') {
+          sorted.sort((a, b) => b.commentCount - a.commentCount);
+        } else if (currentSort === 'count_asc') {
+          sorted.sort((a, b) => a.commentCount - b.commentCount);
+        } else if (currentSort === 'recent') {
+          sorted.sort((a, b) => {
+            if (!a.lastCommentAt && !b.lastCommentAt) return 0;
+            if (!a.lastCommentAt) return 1;
+            if (!b.lastCommentAt) return -1;
+            return new Date(b.lastCommentAt) - new Date(a.lastCommentAt);
+          });
+        }
+        // 'login' はデフォルト（indexedUsers がアルファベット順に並んでいる）
+        return sorted;
       }
 
       function getCandidates(input) {
         const q = input.trim().toLowerCase();
+        let pool;
+
         if (!q) {
-          return indexedUsers.slice(0, maxCandidates);
+          pool = applyStreamerFilter(indexedUsers);
+          return applySort(pool).slice(0, maxCandidates);
         }
 
         const loginStarts = [];
@@ -563,12 +713,11 @@
         const loginContains = [];
         const displayContains = [];
 
-        for (const user of indexedUsers) {
+        const filtered = applyStreamerFilter(indexedUsers);
+        for (const user of filtered) {
           const matchedLogin = user.loginLower.includes(q);
           const matchedDisplay = user.displayLower.includes(q);
-          if (!matchedLogin && !matchedDisplay) {
-            continue;
-          }
+          if (!matchedLogin && !matchedDisplay) continue;
 
           if (user.loginLower.startsWith(q)) {
             loginStarts.push(user);
@@ -581,20 +730,75 @@
           }
         }
 
-        const ordered = loginStarts.concat(displayStarts, loginContains, displayContains);
+        const groups = [loginStarts, displayStarts, loginContains, displayContains];
+        const sortedGroups = groups.map(g => applySort(g));
+        const ordered = sortedGroups.flat();
+
         const deduped = [];
         const seen = new Set();
         for (const user of ordered) {
-          if (seen.has(user.login)) {
-            continue;
-          }
+          if (seen.has(user.login)) continue;
           seen.add(user.login);
           deduped.push(user);
-          if (deduped.length >= maxCandidates) {
-            break;
-          }
+          if (deduped.length >= maxCandidates) break;
         }
         return deduped;
+      }
+
+      function buildCandidateItem(user) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'search-item';
+        btn.setAttribute('role', 'option');
+
+        // アバター
+        const avatarEl = document.createElement('span');
+        avatarEl.className = 'search-item-avatar';
+        if (user.profileImageUrl) {
+          const img = document.createElement('img');
+          img.src = user.profileImageUrl;
+          img.alt = '';
+          img.loading = 'lazy';
+          avatarEl.appendChild(img);
+        } else {
+          avatarEl.textContent = (user.displayName || user.login)[0].toUpperCase();
+        }
+        btn.appendChild(avatarEl);
+
+        // 本文
+        const bodyEl = document.createElement('div');
+        bodyEl.className = 'search-item-body';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'search-item-name';
+        nameEl.textContent = formatCandidateLabel(user);
+        bodyEl.appendChild(nameEl);
+
+        if (user.commentCount > 0) {
+          const metaEl = document.createElement('div');
+          metaEl.className = 'search-item-meta';
+          const rel = formatRelativeTime(user.lastCommentAt);
+          metaEl.textContent = rel ? `最終活動: ${rel}` : '';
+          bodyEl.appendChild(metaEl);
+        }
+        btn.appendChild(bodyEl);
+
+        // コメント数バッジ
+        if (user.commentCount > 0) {
+          const countEl = document.createElement('span');
+          countEl.className = 'search-item-count';
+          countEl.textContent = user.commentCount.toLocaleString();
+          btn.appendChild(countEl);
+        }
+
+        btn.addEventListener('pointerdown', (event) => {
+          event.preventDefault();
+        });
+        btn.addEventListener('click', () => {
+          selectLogin(user.login);
+          loginInput.focus();
+        });
+        return btn;
       }
 
       function hideCandidates() {
@@ -621,19 +825,7 @@
 
         const fragment = document.createDocumentFragment();
         for (const user of candidates) {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'search-item';
-          btn.setAttribute('role', 'option');
-          btn.textContent = formatCandidateLabel(user);
-          btn.addEventListener('pointerdown', (event) => {
-            event.preventDefault();
-          });
-          btn.addEventListener('click', () => {
-            selectLogin(user.login);
-            loginInput.focus();
-          });
-          fragment.appendChild(btn);
+          fragment.appendChild(buildCandidateItem(user));
         }
 
         loginSearchResults.appendChild(fragment);
@@ -661,15 +853,11 @@
       });
 
       loginInput.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape') {
-          hideCandidates();
-        }
+        if (event.key === 'Escape') hideCandidates();
       });
 
       document.addEventListener('click', (event) => {
-        if (!loginSearchWrapper.contains(event.target)) {
-          hideCandidates();
-        }
+        if (!loginSearchWrapper.contains(event.target)) hideCandidates();
       });
 
       form.addEventListener('submit', (event) => {
@@ -684,6 +872,44 @@
         loginInput.reportValidity();
         loginInput.focus();
       });
+
+      if (streamerFilter) {
+        streamerFilter.addEventListener('change', async function() {
+          const streamer = this.value;
+          loginInput.value = '';
+          loginInput.setCustomValidity('');
+          setActionLinkState(false);
+
+          if (!streamer) {
+            streamerFilterSet = null;
+            renderCandidates('');
+            loginInput.focus();
+            return;
+          }
+
+          // ローディング中は空リストを表示
+          streamerFilterSet = 'loading';
+          loginSearchResults.innerHTML = '<div class="search-empty">読み込み中...</div>';
+          loginSearchResults.hidden = false;
+
+          try {
+            const res = await fetch(`/api/users/commenters?streamer=${encodeURIComponent(streamer)}`);
+            const data = await res.json();
+            streamerFilterSet = new Set(data.logins);
+          } catch {
+            streamerFilterSet = null;
+          }
+          renderCandidates('');
+          loginInput.focus();
+        });
+      }
+
+      if (sortSelect) {
+        sortSelect.addEventListener('change', function() {
+          currentSort = this.value;
+          renderCandidates(loginInput.value);
+        });
+      }
 
       syncActionLinksFromInput();
     </script>
