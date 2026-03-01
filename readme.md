@@ -15,6 +15,7 @@ Twitch VOD コメントを収集し、検索・分析・可視化するための
 ## 主な機能
 
 - Twitch VOD コメントの自動収集（Twitch API + TwitchDownloaderCLI）
+- トップページユーザー検索（login / display_name インクリメンタルサジェスト、配信者フィルター・並び替え）
 - コメント一覧 UI（フィルタ、並び替え、無限スクロール、リアクション）
 - 類似検索（FAISS + SentenceTransformer）
 - 典型度検索（重心距離）
@@ -190,7 +191,7 @@ docker compose up --build
 ```
 
 - `db`: ホストへは公開しない（`app`/`batch`/`migrate` から `db:3306` で接続）
-- `app`: `http://localhost:8000/twicome`
+- `app`: `http://localhost:8000/twicome`（healthcheck: `GET /health` を30秒ごとに確認）
 - `batch`: 起動直後に1回実行、その後4時間ごとに定期実行
 - `migrate`: 起動時に `alembic upgrade head` を実行（完了後に停止）
 
@@ -201,7 +202,7 @@ docker compose -f docker-compose.dev.yml up --build
 ```
 
 - `db`: ホストへは公開しない（`app`/`batch`/`migrate` から `db:3306` で接続）
-- `app`: `http://localhost:8011/`
+- `app`: `http://localhost:8011/`（healthcheck: `GET /health` を30秒ごとに確認）
 
 `batch` / `library` のコード変更を反映するには `batch` イメージ再ビルド（`docker compose build batch`）が必要です。
 
@@ -231,7 +232,7 @@ COMPOSE_DATABASE_URL="mysql+pymysql://appuser:apppass@host.docker.internal:3306/
 
 ## Web 画面
 
-- `/`: トップ（ユーザ選択、人気コメント、導線）
+- `/`: トップ（ユーザ検索・サジェスト、配信者フィルター・並び替え、人気コメント、導線）
 - `/u/{login}`: コメント一覧
 - `/u/{login}/stats`: 統計
 - `/u/{login}/quiz`: コメント当てクイズ
@@ -245,11 +246,13 @@ COMPOSE_DATABASE_URL="mysql+pymysql://appuser:apppass@host.docker.internal:3306/
 
 ## 主要 API
 
+- `GET /health`: ヘルスチェック（`{"status": "ok"}` を返す）
 - `GET /api/u/{login}`: コメント一覧
 - `GET /api/u/{login}/similar`: 類似検索
 - `GET /api/u/{login}/centroid`: 典型度検索
 - `GET /api/u/{login}/emotion`: 感情検索
 - `GET /api/emotion_axes`: 感情軸一覧
+- `GET /api/users/commenters?streamer={login}`: 指定配信者のVODにコメントしたユーザーのloginリストを返す
 - `POST /like/{comment_id}?count=1`: いいね加算
 - `POST /dislike/{comment_id}?count=1`: わるいね加算
 - `GET /api/u/{login}/quiz/start`: クイズ問題生成
